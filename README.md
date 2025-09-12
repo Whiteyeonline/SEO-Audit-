@@ -1,24 +1,10 @@
-# Automated SEO Audit
-
-**Free, professional SEO audits for any website—powered by GitHub Actions and open-source tools.**  
-Run this workflow from your phone!  
-- Enter a website URL  
-- Get a full SEO report instantly
-
-## How to Use
-1. Go to the Actions tab in your repo
-2. Select "Automated SEO Audit" workflow
-3. Click "Run workflow" and enter the website URL
-4. After 1-2 minutes, download `seo_audit_report.md` from the workflow run artifacts
-5. Send the report to your customer (convert to PDF with any free online tool for extra professionalism)
-
-## What’s Checked
-- Meta tags (title, description)
-- Heading structure
-- Broken links (first 20)
-- Mobile friendliness
-- Images & alt text
-
----
-
-*Build your freelance business, help website owners, and earn—all with just a smartphone!*
+Professional SEO Audit Toolkit
+This toolkit is a powerful, two-part system designed to help freelancers and digital marketers quickly perform SEO audits and generate professional, client-ready reports.
+The system consists of two main components:
+seo_audit.py: A Python script that performs a technical and on-page SEO audit on a single URL and saves the findings to a structured JSON file.
+report_generator.html: A web-based application that reads the JSON data and uses AI to generate a comprehensive, personalized, and actionable SEO report in a clean, readable format.
+Features
+Technical Auditing: Checks for a robots.txt file, page load time, canonical tags, and mobile-friendliness.
+On-Page Analysis: Analyzes meta titles, meta descriptions, heading structure, link counts, and content word count. Also detects and lists broken links on the page.
+Automated Reporting: Uses AI to interpret the audit data and write a detailed report, saving you time and effort.
+Easy-to-Use Workflow: Designed for a seamless process from data collection to report generation.
