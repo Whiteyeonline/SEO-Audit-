@@ -1,5 +1,6 @@
 import sys
 import requests
+import time
 from bs4 import BeautifulSoup
 from markdownify import markdownify
 
@@ -7,11 +8,13 @@ from report_generator import generate_report
 
 def get_html(url):
     try:
+        start = time.time()
         resp = requests.get(url, timeout=10)
         resp.raise_for_status()
-        return resp.text
+        load_time = round(time.time() - start, 2)  # page load time in seconds
+        return resp.text, load_time
     except Exception as e:
-        return None
+        return None, None
 
 def check_meta(soup):
     title = soup.title.string if soup.title else "Missing"
@@ -26,7 +29,7 @@ def check_headings(soup):
 def check_links(soup, url):
     links = soup.find_all('a', href=True)
     broken = []
-    for l in links[:20]:  # Limit for speed
+    for l in links[:100]:  # Increased limit from 20 → 100
         href = l['href']
         if href.startswith('http'):
             try:
@@ -48,7 +51,7 @@ def check_images(soup):
 
 def main():
     url = sys.argv[1]
-    html = get_html(url)
+    html, load_time = get_html(url)
     if not html:
         with open("seo_audit_report.md", "w") as f:
             f.write(f"# SEO Audit Report\n\nCould not fetch {url}.\n")
@@ -70,7 +73,8 @@ def main():
         "mobile_friendly": mobile,
         "image_total": img_total,
         "image_missing_alt": img_missing_alt,
-        "raw_html": html[:1000]  # For context, limited
+        "page_speed": load_time if load_time else "Error measuring",
+        "raw_html": html[:1000]  # For context
     }
 
     report = generate_report(data)
