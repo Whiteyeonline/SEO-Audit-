@@ -1,3 +1,7 @@
+---
+
+## 🔹 4. Workflow (`.github/workflows/seo_audit.yml`)
+```yaml
 name: SEO Audit
 
 on:
@@ -11,36 +15,28 @@ on:
 jobs:
   audit:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - name: Checkout Repo
+        uses: actions/checkout@v3
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v4
         with:
-          python-version: '3.11'
+          python-version: '3.x'
 
       - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install requests beautifulsoup4 markdown
+        run: pip install requests beautifulsoup4
 
       - name: Run SEO Audit
-        run: |
-          echo "Auditing ${{ github.event.inputs.url }}"
-          python seo_audit.py "${{ github.event.inputs.url }}"
+        run: python seo_audit.py "${{ github.event.inputs.url }}"
 
-      - name: Generate AI Report
-        run: |
-          echo "Generating AI Report..."
-          python report_generator.py seo_data.json
+      - name: Generate Professional Report with AI
+        env:
+          HF_API_TOKEN: ${{ secrets.HF_API_TOKEN }}
+        run: python report_generator.py
 
-      - name: Upload Report Artifacts
-        uses: actions/upload-artifact@v4
+      - name: Upload Report
+        uses: actions/upload-artifact@v3
         with:
-          name: seo-audit-reports
-          path: |
-            seo_data.json
-            seo_report.md
-            seo_report.html
+          name: seo-report
+          path: seo_report.md
