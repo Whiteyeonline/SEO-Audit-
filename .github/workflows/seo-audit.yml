@@ -1,42 +1,39 @@
----
-
-## 📌 4. GitHub Actions Workflow (`.github/workflows/seo_audit.yml`)
-
-```yaml
 name: SEO Audit
 
 on:
   workflow_dispatch:
     inputs:
       url:
-        description: "Enter website URL"
+        description: "Enter website URL for audit"
         required: true
-        default: "http://example.com"
 
 jobs:
-  seo-audit:
+  audit:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout repo
+      - name: Checkout Repo
         uses: actions/checkout@v3
 
-      - name: Set up Python
+      - name: Setup Python
         uses: actions/setup-python@v4
         with:
           python-version: "3.10"
 
-      - name: Install dependencies
-        run: pip install requests beautifulsoup4
+      - name: Install Dependencies
+        run: |
+          pip install requests beautifulsoup4 transformers reportlab
 
       - name: Run SEO Audit
         run: python seo_audit.py ${{ github.event.inputs.url }}
 
-      - name: Generate Report
-        run: python report_generator.py
+      - name: Generate AI Report
+        run: python ai_report_generator.py
 
-      - name: Upload Report
+      - name: Upload Report Artifacts
         uses: actions/upload-artifact@v3
         with:
           name: seo-report
-          path: seo_report.md
+          path: |
+            seo_data.json
+            seo_report_full.md
+            seo_report_full.pdf
