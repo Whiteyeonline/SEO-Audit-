@@ -1,7 +1,6 @@
 ---
 
 ## 🔹 4. Workflow (`.github/workflows/seo_audit.yml`)
-```yaml
 name: SEO Audit
 
 on:
