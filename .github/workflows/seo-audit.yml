@@ -34,7 +34,7 @@ jobs:
       - name: Generate AI Report
         run: |
           echo "Generating AI Report..."
-          python ai_report_generator.py seo_data.json
+          python report_generator.py seo_data.json
 
       - name: Upload Report Artifacts
         uses: actions/upload-artifact@v4
