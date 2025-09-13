@@ -8,7 +8,8 @@ API_TOKEN = os.getenv("HF_API_TOKEN")  # set this in repo secrets
 headers = {"Authorization": f"Bearer {API_TOKEN}"}
 
 def query(payload):
-    response = requests.post(HUGGINGFACE_API_URL, headers=headers, json=payload, timeout=60)
+    response = requests.post(API_URL, headers=headers, json=payload, timeout=60)
+    
     response.raise_for_status()
     return response.json()
 
