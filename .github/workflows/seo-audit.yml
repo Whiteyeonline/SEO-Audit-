@@ -35,7 +35,7 @@ jobs:
         run: python report_generator.py
 
       - name: Upload Report
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: seo-report
           path: seo_report.md
