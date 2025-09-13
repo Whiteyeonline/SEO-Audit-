@@ -2,7 +2,7 @@ import json
 import requests
 import os
 
-API_URL = "https://api-inference.huggingface.co/models/facebook/bart-large-cnn"
+API_URL = "https://api-inference.huggingface.co/models/google/gemma-3-270m"
 API_TOKEN = os.getenv("HF_API_TOKEN")  # set this in repo secrets
 
 headers = {"Authorization": f"Bearer {API_TOKEN}"}
