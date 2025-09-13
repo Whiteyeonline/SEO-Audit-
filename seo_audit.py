@@ -4,6 +4,7 @@ import time
 import urllib.parse
 from bs4 import BeautifulSoup
 import json
+import datetime
 
 def get_html(url):
     """Fetches the HTML content of a given URL and measures the page load time."""
@@ -14,7 +15,6 @@ def get_html(url):
         load_time = round(time.time() - start, 2)
         return resp.text, load_time
     except Exception as e:
-        print(f"Error fetching URL: {e}", file=sys.stderr)
         return None, None
 
 def check_robots_txt(base_url):
@@ -50,11 +50,10 @@ def check_links(soup, base_url):
     broken_links = []
     
     links = soup.find_all('a', href=True)
-    for a_tag in links[:100]:  # Limit to 100 links to prevent very long scan times
+    for a_tag in links[:100]:
         href = a_tag['href']
         parsed_href = urllib.parse.urlparse(href)
-
-        # Classify the link as internal or external
+        
         if parsed_href.scheme and parsed_href.netloc:
             if parsed_href.netloc == urllib.parse.urlparse(base_url).netloc:
                 internal_links += 1
@@ -63,10 +62,8 @@ def check_links(soup, base_url):
         elif not parsed_href.netloc:
             internal_links += 1
 
-        # Check for broken links (only for absolute URLs)
         if href.startswith('http'):
             try:
-                # Use HEAD request for efficiency
                 resp = requests.head(href, timeout=5, allow_redirects=True)
                 if resp.status_code >= 400:
                     broken_links.append(href)
@@ -92,48 +89,39 @@ def check_content_length(soup):
     word_count = len(body_text.split())
     return word_count
 
-def main():
-    if len(sys.argv) < 2:
-        print("Usage: python seo_audit.py <URL>")
-        return
-
-    url = sys.argv[1]
+def main(url):
+    """Main function to run the audit and generate the report."""
     html, load_time = get_html(url)
     if not html:
-        print(f"Could not fetch {url}.", file=sys.stderr)
+        print("Error: Could not fetch the URL.", file=sys.stderr)
         return
 
     soup = BeautifulSoup(html, 'html.parser')
-    robots_txt_exists = check_robots_txt(url)
-    title, desc = check_meta(soup)
-    canonical_url = check_canonical_tag(soup)
-    headings = check_headings(soup)
-    broken_links, internal_links, external_links = check_links(soup, url)
-    mobile_friendly = check_mobile_friendly(soup)
-    img_total, img_missing_alt = check_images(soup)
-    word_count = check_content_length(soup)
     
     data = {
         "url": url,
-        "robots_txt_exists": robots_txt_exists,
-        "title": title,
-        "description": desc,
-        "canonical_url": canonical_url,
-        "headings": headings,
-        "broken_links": broken_links,
-        "internal_links": internal_links,
-        "external_links": external_links,
-        "mobile_friendly": mobile_friendly,
-        "image_total": img_total,
-        "image_missing_alt": img_missing_alt,
-        "word_count": word_count,
+        "robots_txt_exists": check_robots_txt(url),
+        "title": check_meta(soup)[0],
+        "description": check_meta(soup)[1],
+        "canonical_url": check_canonical_tag(soup),
+        "headings": check_headings(soup),
+        "broken_links": check_links(soup, url)[0],
+        "internal_links": check_links(soup, url)[1],
+        "external_links": check_links(soup, url)[2],
+        "mobile_friendly": check_mobile_friendly(soup),
+        "image_total": check_images(soup)[0],
+        "image_missing_alt": check_images(soup)[1],
+        "word_count": check_content_length(soup),
         "page_speed": load_time if load_time else "Error measuring"
     }
-
-    # Save the data to a JSON file
+    
     with open("seo_data.json", "w") as f:
         json.dump(data, f, indent=4)
-    print("SEO data saved to seo_data.json. Please open report_generator.html to continue.")
+    
+    print("SEO data generated and saved to seo_data.json")
 
 if __name__ == "__main__":
-    main()
+    if len(sys.argv) > 1:
+        main(sys.argv[1])
+    else:
+        print("Usage: python seo_audit.py <URL>")
