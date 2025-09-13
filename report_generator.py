@@ -1,94 +1,44 @@
-import sys
 import json
-from markdown import markdown
+import requests
+import os
 
-def load_data(json_file):
-    with open(json_file, "r") as f:
-        return json.load(f)
+HUGGINGFACE_API_URL = "https://api-inference.huggingface.co/models/google/flan-t5-large"
+API_TOKEN = os.getenv("HF_API_TOKEN")  # set this in repo secrets
 
-def generate_markdown_report(data):
-    report = f"# SEO Audit Report for {data['url']}\n\n"
+headers = {"Authorization": f"Bearer {API_TOKEN}"}
 
-    report += "## 📝 Meta Information\n"
-    report += f"- **Title:** {data['title']}\n"
-    report += f"- **Description:** {data['description']}\n"
-    report += f"- **Canonical URL:** {data['canonical_url']}\n\n"
+def query(payload):
+    response = requests.post(HUGGINGFACE_API_URL, headers=headers, json=payload, timeout=60)
+    response.raise_for_status()
+    return response.json()
 
-    report += "## 🔎 Headings Structure\n"
-    for h, count in data['headings'].items():
-        report += f"- {h.upper()}: {count}\n"
-    report += "\n"
+def generate_ai_summary(data):
+    prompt = f"""
+You are an SEO expert. Generate a professional SEO audit report.
 
-    report += "## 🔗 Links\n"
-    report += f"- Internal Links: {data['internal_links']}\n"
-    report += f"- External Links: {data['external_links']}\n"
-    report += f"- Broken Links: {len(data['broken_links'])}\n\n"
+Data:
+{json.dumps(data, indent=2)}
 
-    if data['broken_links']:
-        for link in data['broken_links'][:10]:
-            report += f"  - {link}\n"
-        report += "\n"
-
-    report += "## 📱 Mobile Friendly\n"
-    report += "✅ Yes\n\n" if data['mobile_friendly'] else "❌ No\n\n"
-
-    report += "## 🖼️ Images\n"
-    report += f"- Total Images: {data['image_total']}\n"
-    report += f"- Missing Alt Text: {data['image_missing_alt']}\n\n"
-
-    report += "## 📊 Content\n"
-    report += f"- Word Count: {data['word_count']}\n"
-    report += f"- Page Speed: {data['page_speed']} seconds\n\n"
-
-    # --- AI-like professional summary ---
-    report += "## 💡 Professional Summary\n"
-    issues = []
-    if data['title'] == "Missing":
-        issues.append("Missing title tag")
-    if data['description'] == "Missing":
-        issues.append("Missing meta description")
-    if data['image_missing_alt'] > 0:
-        issues.append(f"{data['image_missing_alt']} images missing alt text")
-    if len(data['broken_links']) > 0:
-        issues.append(f"{len(data['broken_links'])} broken links detected")
-    if not data['mobile_friendly']:
-        issues.append("Site not mobile-friendly")
-
-    if issues:
-        report += "### ❌ Issues Found\n"
-        for i in issues:
-            report += f"- {i}\n"
-        report += "\n### ✅ Recommendations\n"
-        if "Missing title tag" in issues:
-            report += "- Add a descriptive `<title>` tag.\n"
-        if "Missing meta description" in issues:
-            report += "- Add a `<meta name='description'>` tag.\n"
-        if "images missing alt text" in "".join(issues):
-            report += "- Add meaningful `alt` text to all images.\n"
-        if "broken links" in "".join(issues):
-            report += "- Fix or remove broken links.\n"
-        if "not mobile-friendly" in "".join(issues):
-            report += "- Add a `<meta name='viewport'>` for responsiveness.\n"
-    else:
-        report += "✅ No major SEO issues detected.\n"
-
-    return report
-
-def save_reports(report_md):
-    with open("seo_report.md", "w") as f:
-        f.write(report_md)
-
-    with open("seo_report.html", "w") as f:
-        f.write(markdown(report_md))
+Report should include:
+- SEO Health Score (0-100)
+- ✅❌ style checklist
+- Issues found
+- Keyword analysis
+- Recommendations with solutions
+- Simple chart/visual suggestions
+- Final section with raw results
+Write in Markdown.
+    """
+    output = query({"inputs": prompt})
+    return output[0]["generated_text"] if isinstance(output, list) else output["generated_text"]
 
 def main():
-    if len(sys.argv) < 2:
-        print("Usage: python ai_report_generator.py seo_data.json")
-        return
-    data = load_data(sys.argv[1])
-    report_md = generate_markdown_report(data)
-    save_reports(report_md)
-    print("AI Report generated: seo_report.md & seo_report.html")
+    with open("seo_data.json") as f:
+        data = json.load(f)
+    summary = generate_ai_summary(data)
+    with open("seo_report.md", "w", encoding="utf-8") as f:
+        f.write(summary)
+    print("✅ Professional AI SEO report saved to seo_report.md")
 
 if __name__ == "__main__":
     main()
