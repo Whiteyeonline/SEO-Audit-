@@ -5,6 +5,13 @@ import urllib.parse
 from bs4 import BeautifulSoup
 import json
 import datetime
+import re
+from collections import Counter
+
+STOPWORDS = set([
+    "the", "and", "or", "for", "to", "of", "in", "on", "at", "is", "a", "an", "with", 
+    "by", "this", "that", "from", "it", "as", "be", "are", "was", "were", "but", "if", "then"
+])
 
 def get_html(url):
     try:
@@ -72,17 +79,36 @@ def check_content_length(soup):
     body_text = soup.body.get_text() if soup.body else ""
     return len(body_text.split())
 
+def keyword_analysis(soup, title, meta_desc):
+    text = soup.get_text(" ", strip=True).lower()
+    words = re.findall(r'\b[a-zA-Z]{3,}\b', text)
+    words = [w for w in words if w not in STOPWORDS]
+
+    freq = Counter(words).most_common(15)
+    top_keywords = [w for w, _ in freq]
+
+    analysis = {
+        "top_keywords": top_keywords,
+        "density": dict(freq),
+        "in_title": any(k in title.lower() for k in top_keywords),
+        "in_meta": any(k in meta_desc.lower() for k in top_keywords),
+        "in_h1": any(k in (soup.h1.get_text().lower() if soup.h1 else "") for k in top_keywords)
+    }
+    return analysis
+
 def main(url):
     html, load_time = get_html(url)
     if not html:
         print("Error: Could not fetch the URL.", file=sys.stderr)
         return
     soup = BeautifulSoup(html, 'html.parser')
+    title, meta_desc = check_meta(soup)
     data = {
         "url": url,
+        "timestamp": datetime.datetime.utcnow().isoformat(),
         "robots_txt_exists": check_robots_txt(url),
-        "title": check_meta(soup)[0],
-        "description": check_meta(soup)[1],
+        "title": title,
+        "description": meta_desc,
         "canonical_url": check_canonical_tag(soup),
         "headings": check_headings(soup),
         "broken_links": check_links(soup, url)[0],
@@ -92,7 +118,8 @@ def main(url):
         "image_total": check_images(soup)[0],
         "image_missing_alt": check_images(soup)[1],
         "word_count": check_content_length(soup),
-        "page_speed": load_time if load_time else "Error measuring"
+        "page_speed": load_time if load_time else "Error measuring",
+        "keywords": keyword_analysis(soup, title, meta_desc)
     }
     with open("seo_data.json", "w") as f:
         json.dump(data, f, indent=4)
