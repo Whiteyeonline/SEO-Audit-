@@ -4,36 +4,43 @@ on:
   workflow_dispatch:
     inputs:
       url:
-        description: "Enter website URL for audit"
+        description: 'Enter the website URL to audit'
         required: true
+        default: 'https://example.com'
 
 jobs:
   audit:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout Repo
-        uses: actions/checkout@v3
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      - name: Setup Python
-        uses: actions/setup-python@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
-          python-version: "3.10"
+          python-version: '3.11'
 
-      - name: Install Dependencies
+      - name: Install dependencies
         run: |
-          pip install requests beautifulsoup4 transformers reportlab
+          python -m pip install --upgrade pip
+          pip install requests beautifulsoup4 markdown
 
       - name: Run SEO Audit
-        run: python seo_audit.py ${{ github.event.inputs.url }}
+        run: |
+          echo "Auditing ${{ github.event.inputs.url }}"
+          python seo_audit.py "${{ github.event.inputs.url }}"
 
       - name: Generate AI Report
-        run: python ai_report_generator.py
+        run: |
+          echo "Generating AI Report..."
+          python ai_report_generator.py seo_data.json
 
       - name: Upload Report Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: seo-report
+          name: seo-audit-reports
           path: |
             seo_data.json
-            seo_report_full.md
-            seo_report_full.pdf
+            seo_report.md
+            seo_report.html
