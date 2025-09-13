@@ -1,50 +1,94 @@
+import sys
 import json
-from transformers import pipeline
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
-from reportlab.lib.styles import getSampleStyleSheet
+from markdown import markdown
 
-def generate_ai_report():
-    # Load SEO data
-    with open("seo_data.json", "r") as f:
-        data = json.load(f)
+def load_data(json_file):
+    with open(json_file, "r") as f:
+        return json.load(f)
 
-    # AI Prompt
-    prompt = f"""
-You are an SEO consultant. Write a professional SEO audit report with:
-1. Executive Summary (rating, findings, key issues, solutions).
-2. Detailed Explanations (on-page, technical SEO, links, images, content).
-Make it client-friendly, clear, and professional.
+def generate_markdown_report(data):
+    report = f"# SEO Audit Report for {data['url']}\n\n"
 
-Website data:
-{json.dumps(data, indent=2)}
-"""
+    report += "## 📝 Meta Information\n"
+    report += f"- **Title:** {data['title']}\n"
+    report += f"- **Description:** {data['description']}\n"
+    report += f"- **Canonical URL:** {data['canonical_url']}\n\n"
 
-    generator = pipeline("text-generation", model="tiiuae/falcon-7b-instruct")
-    ai_text = generator(prompt, max_length=1000, do_sample=True, temperature=0.7)[0]['generated_text']
+    report += "## 🔎 Headings Structure\n"
+    for h, count in data['headings'].items():
+        report += f"- {h.upper()}: {count}\n"
+    report += "\n"
 
-    # Build markdown report
-    final_report = "# SEO Audit Report\n\n"
-    final_report += "## 📌 Professional SEO Analysis (AI Generated)\n\n"
-    final_report += ai_text.strip() + "\n\n"
-    final_report += "## 📊 Raw SEO Data (Technical Results)\n\n"
-    for k, v in data.items():
-        final_report += f"- **{k}:** {v}\n"
+    report += "## 🔗 Links\n"
+    report += f"- Internal Links: {data['internal_links']}\n"
+    report += f"- External Links: {data['external_links']}\n"
+    report += f"- Broken Links: {len(data['broken_links'])}\n\n"
 
-    # Save Markdown
-    with open("seo_report_full.md", "w") as f:
-        f.write(final_report)
+    if data['broken_links']:
+        for link in data['broken_links'][:10]:
+            report += f"  - {link}\n"
+        report += "\n"
 
-    # Save PDF
-    doc = SimpleDocTemplate("seo_report_full.pdf")
-    styles = getSampleStyleSheet()
-    story = [Paragraph("SEO Audit Report", styles["Title"]), Spacer(1, 12)]
-    for line in final_report.split("\n"):
-        if line.strip():
-            story.append(Paragraph(line, styles["Normal"]))
-            story.append(Spacer(1, 6))
-    doc.build(story)
+    report += "## 📱 Mobile Friendly\n"
+    report += "✅ Yes\n\n" if data['mobile_friendly'] else "❌ No\n\n"
 
-    print("✅ Full SEO report saved as seo_report_full.md and seo_report_full.pdf")
+    report += "## 🖼️ Images\n"
+    report += f"- Total Images: {data['image_total']}\n"
+    report += f"- Missing Alt Text: {data['image_missing_alt']}\n\n"
+
+    report += "## 📊 Content\n"
+    report += f"- Word Count: {data['word_count']}\n"
+    report += f"- Page Speed: {data['page_speed']} seconds\n\n"
+
+    # --- AI-like professional summary ---
+    report += "## 💡 Professional Summary\n"
+    issues = []
+    if data['title'] == "Missing":
+        issues.append("Missing title tag")
+    if data['description'] == "Missing":
+        issues.append("Missing meta description")
+    if data['image_missing_alt'] > 0:
+        issues.append(f"{data['image_missing_alt']} images missing alt text")
+    if len(data['broken_links']) > 0:
+        issues.append(f"{len(data['broken_links'])} broken links detected")
+    if not data['mobile_friendly']:
+        issues.append("Site not mobile-friendly")
+
+    if issues:
+        report += "### ❌ Issues Found\n"
+        for i in issues:
+            report += f"- {i}\n"
+        report += "\n### ✅ Recommendations\n"
+        if "Missing title tag" in issues:
+            report += "- Add a descriptive `<title>` tag.\n"
+        if "Missing meta description" in issues:
+            report += "- Add a `<meta name='description'>` tag.\n"
+        if "images missing alt text" in "".join(issues):
+            report += "- Add meaningful `alt` text to all images.\n"
+        if "broken links" in "".join(issues):
+            report += "- Fix or remove broken links.\n"
+        if "not mobile-friendly" in "".join(issues):
+            report += "- Add a `<meta name='viewport'>` for responsiveness.\n"
+    else:
+        report += "✅ No major SEO issues detected.\n"
+
+    return report
+
+def save_reports(report_md):
+    with open("seo_report.md", "w") as f:
+        f.write(report_md)
+
+    with open("seo_report.html", "w") as f:
+        f.write(markdown(report_md))
+
+def main():
+    if len(sys.argv) < 2:
+        print("Usage: python ai_report_generator.py seo_data.json")
+        return
+    data = load_data(sys.argv[1])
+    report_md = generate_markdown_report(data)
+    save_reports(report_md)
+    print("AI Report generated: seo_report.md & seo_report.html")
 
 if __name__ == "__main__":
-    generate_ai_report()
+    main()
