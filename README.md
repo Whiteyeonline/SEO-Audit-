@@ -1,26 +1,26 @@
-# SEO Audit Tool
+# SEO Audit with AI-Powered Reports
 
-This is a simple SEO audit tool written in Python.
+This project runs an SEO audit on any website and generates a **professional AI-enhanced report**.
 
 ## 🚀 Features
-- Checks title, description, and canonical tags
-- Verifies robots.txt
-- Counts headings (H1–H6)
-- Detects broken links (first 100 checked)
-- Checks internal vs external links
-- Detects missing image ALT attributes
-- Measures word count
-- Checks for mobile-friendliness
-- Measures page speed
+- Checks meta tags, headings, links, images, mobile friendliness
+- Measures page speed & content length
+- Keyword analysis (top keywords, density, placement)
+- Detects broken links
+- Generates **AI-powered professional report** (Markdown)
 
 ## 📂 Files
-- `seo_audit.py` → Runs the audit and saves results into `seo_data.json`
-- `report_generator.py` → Converts audit results into a human-readable Markdown report (`seo_report.md`)
-- `.github/workflows/seo_audit.yml` → GitHub Actions workflow to run the audit
+- `seo_audit.py` → Runs the audit, outputs `seo_data.json`
+- `report_generator.py` → Uses Hugging Face AI to generate `seo_report.md`
+- `.github/workflows/seo_audit.yml` → GitHub Actions automation
 
-## ⚡ Usage
+## 🔑 Setup
+1. Get a free [Hugging Face API token](https://huggingface.co/settings/tokens)
+2. In GitHub → Repo → Settings → Secrets → Actions  
+   Add: `HF_API_TOKEN` = your token
 
-### Local
+## ▶️ Usage
+Run locally:
 ```bash
-python seo_audit.py <URL>
-python report_generator.py
+python seo_audit.py https://example.com
+python report_generator.pypython report_generator.py
