@@ -1,54 +1,50 @@
 import json
+from transformers import pipeline
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+from reportlab.lib.styles import getSampleStyleSheet
 
-def generate_report():
+def generate_ai_report():
+    # Load SEO data
     with open("seo_data.json", "r") as f:
         data = json.load(f)
 
-    report = f"""
-# SEO Audit Report for {data['url']}
+    # AI Prompt
+    prompt = f"""
+You are an SEO consultant. Write a professional SEO audit report with:
+1. Executive Summary (rating, findings, key issues, solutions).
+2. Detailed Explanations (on-page, technical SEO, links, images, content).
+Make it client-friendly, clear, and professional.
 
-## 📝 Meta Information
-- **Title:** {data['title']}
-- **Description:** {data['description']}
-- **Canonical URL:** {data['canonical_url']}
-
-## 🔍 SEO Checks
-- Robots.txt Present: {"✅ Yes" if data['robots_txt_exists'] else "❌ No"}
-- Mobile Friendly: {"✅ Yes" if data['mobile_friendly'] else "❌ No"}
-- Word Count: {data['word_count']}
-- Page Load Speed: {data['page_speed']}s
-
-## 📊 Headings
-"""
-    for h, count in data["headings"].items():
-        report += f"- {h.upper()}: {count}\n"
-
-    report += f"""
-
-## 🔗 Links
-- Internal Links: {data['internal_links']}
-- External Links: {data['external_links']}
-- Broken Links: {len(data['broken_links'])}
-"""
-    if data["broken_links"]:
-        report += "\n### Broken Links List:\n"
-        for link in data["broken_links"]:
-            report += f"- {link}\n"
-
-    report += f"""
-
-## 🖼️ Images
-- Total Images: {data['image_total']}
-- Missing ALT: {data['image_missing_alt']}
-
----
-✅ Report generated successfully.
+Website data:
+{json.dumps(data, indent=2)}
 """
 
-    with open("seo_report.md", "w") as f:
-        f.write(report)
+    generator = pipeline("text-generation", model="tiiuae/falcon-7b-instruct")
+    ai_text = generator(prompt, max_length=1000, do_sample=True, temperature=0.7)[0]['generated_text']
 
-    print("📄 Report saved as seo_report.md")
+    # Build markdown report
+    final_report = "# SEO Audit Report\n\n"
+    final_report += "## 📌 Professional SEO Analysis (AI Generated)\n\n"
+    final_report += ai_text.strip() + "\n\n"
+    final_report += "## 📊 Raw SEO Data (Technical Results)\n\n"
+    for k, v in data.items():
+        final_report += f"- **{k}:** {v}\n"
+
+    # Save Markdown
+    with open("seo_report_full.md", "w") as f:
+        f.write(final_report)
+
+    # Save PDF
+    doc = SimpleDocTemplate("seo_report_full.pdf")
+    styles = getSampleStyleSheet()
+    story = [Paragraph("SEO Audit Report", styles["Title"]), Spacer(1, 12)]
+    for line in final_report.split("\n"):
+        if line.strip():
+            story.append(Paragraph(line, styles["Normal"]))
+            story.append(Spacer(1, 6))
+    doc.build(story)
+
+    print("✅ Full SEO report saved as seo_report_full.md and seo_report_full.pdf")
 
 if __name__ == "__main__":
-    generate_report()
+    generate_ai_report()
