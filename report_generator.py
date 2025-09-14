@@ -1,10 +1,16 @@
 import os
 import requests
 import json
-API_URL = "https://api-inference.huggingface.co/models/facebook/bart-large-cnn"
-API_TOKEN = os.getenv("HF_API_TOKEN")
 
-headers = {"Authorization": f"Bearer {API_TOKEN}"}
+# Use a more capable model from a different API
+# This example uses OpenAI, but you can use any LLM with a similar API structure
+API_URL = "https://api.openai.com/v1/chat/completions"
+API_TOKEN = os.getenv("OPENAI_API_KEY")
+
+headers = {
+    "Authorization": f"Bearer {API_TOKEN}",
+    "Content-Type": "application/json"
+}
 
 def query(payload):
     response = requests.post(API_URL, headers=headers, json=payload, timeout=60)
@@ -12,11 +18,19 @@ def query(payload):
     return response.json()
 
 def generate_ai_summary(data):
-    prompt = f"""
-You are an SEO expert. Generate a professional SEO audit report.
-
+    # Construct the prompt with the full data
+    prompt_messages = [
+        {
+            "role": "system",
+            "content": "You are an SEO expert. Generate a professional SEO audit report."
+        },
+        {
+            "role": "user",
+            "content": f"""
 Data:
 {json.dumps(data, indent=2)}
+
+Based on the provided data, generate a comprehensive SEO audit report.
 
 Report should include:
 - SEO Health Score (0-100)
@@ -27,17 +41,40 @@ Report should include:
 - Simple chart/visual suggestions
 - Final section with raw results
 Write in Markdown.
-    """
-    output = query({"inputs": prompt})
-    return output[0]["generated_text"] if isinstance(output, list) else output["generated_text"]
+"""
+        }
+    ]
+    
+    payload = {
+        "model": "gpt-4o",  # gpt-4o or another powerful model
+        "messages": prompt_messages,
+        "temperature": 0.7
+    }
+    
+    output = query(payload)
+    
+    # Extract the generated text from the OpenAI response
+    if "choices" in output and output["choices"]:
+        return output["choices"][0]["message"]["content"]
+    return "Error: Could not generate report."
 
 def main():
-    with open("seo_data.json") as f:
-        data = json.load(f)
-    summary = generate_ai_summary(data)
-    with open("seo_report.md", "w", encoding="utf-8") as f:
-        f.write(summary)
-    print("✅ Professional AI SEO report saved to seo_report.md")
+    try:
+        # Assuming you have a file named seo_data.json
+        with open("seo_data.json", encoding="utf-8") as f:
+            data = json.load(f)
+        
+        summary = generate_ai_summary(data)
+        
+        with open("seo_report.md", "w", encoding="utf-8") as f:
+            f.write(summary)
+            
+        print("✅ Professional AI SEO report saved to seo_report.md")
+    except FileNotFoundError:
+        print("Error: seo_data.json not found.")
+    except Exception as e:
+        print(f"An error occurred: {e}")
 
 if __name__ == "__main__":
     main()
+    
