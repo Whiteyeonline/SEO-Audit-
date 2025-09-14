@@ -1,8 +1,7 @@
 import os
 import requests
 import json
-
-API_URL = "https://api-inference.huggingface.co/models/google/gemma-7b-it"
+API_URL = "https://api-inference.huggingface.co/models/facebook/bart-large-cnn"
 API_TOKEN = os.getenv("HF_API_TOKEN")
 
 headers = {"Authorization": f"Bearer {API_TOKEN}"}
