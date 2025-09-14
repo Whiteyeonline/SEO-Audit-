@@ -3,10 +3,9 @@ import requests
 import json
 from requests.exceptions import RequestException
 
-# Use a more capable model from a different API
-# This example uses OpenAI, but you can use any LLM with a similar API structure
-API_URL = "https://api.openai.com/v1/chat/completions"
-API_TOKEN = os.getenv("OPENAI_API_KEY")
+# Use a text generation model with a large context window
+API_URL = "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.2"
+API_TOKEN = os.getenv("HF_API_TOKEN")
 
 headers = {
     "Authorization": f"Bearer {API_TOKEN}",
@@ -15,26 +14,21 @@ headers = {
 
 def query(payload):
     try:
-        response = requests.post(API_URL, headers=headers, json=payload, timeout=120)  # Increased timeout
-        response.raise_for_status()  # This will raise an HTTPError for bad responses (4xx or 5xx)
+        response = requests.post(API_URL, headers=headers, json=payload, timeout=120)
+        response.raise_for_status()  # This will raise an HTTPError for bad responses
         return response.json()
     except RequestException as e:
         print(f"API request failed: {e}")
-        # Log the response content for more details on the error
         if hasattr(e, 'response') and e.response is not None:
             print(f"Response content: {e.response.text}")
-        raise  # Re-raise the exception to stop execution
+        raise
 
 def generate_ai_summary(data):
-    # Construct the prompt with the full data
-    prompt_messages = [
-        {
-            "role": "system",
-            "content": "You are an SEO expert. Generate a professional SEO audit report."
-        },
-        {
-            "role": "user",
-            "content": f"""
+    # Construct the prompt as a single string for text generation models
+    prompt = f"""
+[INST]
+You are an SEO expert. Generate a professional SEO audit report.
+
 Data:
 {json.dumps(data, indent=2)}
 
@@ -48,35 +42,35 @@ Report should include:
 - Recommendations with solutions
 - Simple chart/visual suggestions
 - Final section with raw results
-Write in Markdown.
+Write the report in Markdown.
+[/INST]
 """
-        }
-    ]
-    
+
     payload = {
-        "model": "gpt-4o",  # or another powerful model
-        "messages": prompt_messages,
-        "temperature": 0.7
+        "inputs": prompt,
+        "parameters": {
+            "max_new_tokens": 2048,  # Specify a generous output length
+            "return_full_text": False, # Only return the generated part
+        }
     }
     
     output = query(payload)
     
-    # Extract the generated text from the OpenAI response
-    if "choices" in output and output["choices"]:
-        return output["choices"][0]["message"]["content"]
+    # Handle the response format, which might be a list or a dictionary
+    if isinstance(output, list) and output:
+        return output[0].get("generated_text", "Error: No generated text found.")
+    elif isinstance(output, dict):
+        return output.get("generated_text", "Error: No generated text found.")
     
-    # If there's an issue with the response structure, raise an error
     raise ValueError("Unexpected API response format.")
 
 def main():
     try:
-        # Assuming you have a file named seo_data.json
         with open("seo_data.json", encoding="utf-8") as f:
             data = json.load(f)
         
         summary = generate_ai_summary(data)
         
-        # Ensure the file is written successfully
         with open("seo_report.md", "w", encoding="utf-8") as f:
             f.write(summary)
             
@@ -84,15 +78,16 @@ def main():
 
     except FileNotFoundError:
         print("Error: seo_data.json not found. Please ensure the file exists in the repository root.")
-        exit(1) # Exit with a non-zero status code to indicate failure
+        exit(1)
 
     except RequestException as e:
         print(f"API request failed: {e}. The report could not be generated.")
-        exit(1) # Exit with a non-zero status code to indicate failure
+        exit(1)
 
     except Exception as e:
         print(f"An unexpected error occurred: {e}")
-        exit(1) # Exit with a non-zero status code to indicate failure
+        exit(1)
 
 if __name__ == "__main__":
     main()
+    
