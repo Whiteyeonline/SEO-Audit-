@@ -4,8 +4,9 @@ from openai import OpenAI
 # Connect to Hugging Face OpenAI-compatible endpoint
 client = OpenAI(
     base_url="https://router.huggingface.co/v1",
-    api_key=os.getenv("HF_TOKEN"),
+    api_key=os.getenv("HF_API_TOKEN"),
 )
+
 
 def generate_ai_report(prompt: str) -> str:
     completion = client.chat.completions.create(
