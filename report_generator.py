@@ -4,11 +4,17 @@ import requests
 import json
 import sys
 from bs4 import BeautifulSoup
-from requests.exceptions import RequestException
+from requests.exceptions import RequestException, HTTPError, Timeout
 
 # Your Hugging Face API key
 API_URL = "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.2"
 API_TOKEN = os.getenv("HF_API_TOKEN")
+
+# Check if the API token is set
+if not API_TOKEN:
+    print("Error: HF_API_TOKEN environment variable not found.")
+    print("Please set it with: export HF_API_TOKEN='your_api_token'")
+    sys.exit(1)
 
 headers = {
     "Authorization": f"Bearer {API_TOKEN}",
@@ -17,29 +23,42 @@ headers = {
 
 def fetch_seo_data(url):
     """Fetches basic SEO data for a given URL."""
+    print(f"Fetching data from {url}...")
     try:
-        response = requests.get(url, timeout=15)
-        response.raise_for_status()
+        response = requests.get(url, timeout=20)
+        response.raise_for_status()  # Raise HTTPError for bad responses (4xx or 5xx)
+        
+        # Check for non-HTML content
+        if 'text/html' not in response.headers.get('Content-Type', ''):
+            print("Skipping: URL does not contain HTML content.")
+            return None
+
         soup = BeautifulSoup(response.text, 'html.parser')
         
         # Collect data points
-        title = soup.title.string if soup.title else 'No title found'
-        meta_description = soup.find('meta', attrs={'name': 'description'})
-        description = meta_description['content'] if meta_description else 'No description found'
+        title_tag = soup.title
+        title = title_tag.string if title_tag and title_tag.string else 'No title found'
         
-        # Add more data points as needed (e.g., H1, canonical, etc.)
+        meta_description_tag = soup.find('meta', attrs={'name': 'description'})
+        description = meta_description_tag['content'] if meta_description_tag else 'No description found'
+        
+        # You can add more data points here, e.g., H1, canonical tags, etc.
         
         data = {
             "url": url,
             "title": title,
             "meta_description": description,
             "status_code": response.status_code,
-            # Add other data points here
         }
+        print("Data fetched successfully.")
         return data
+    except Timeout:
+        print(f"Failed to fetch data from {url}: Request timed out.")
+    except HTTPError as e:
+        print(f"Failed to fetch data from {url}: HTTP error - {e.response.status_code}")
     except RequestException as e:
-        print(f"Failed to fetch data from {url}: {e}")
-        return None
+        print(f"Failed to fetch data from {url}: An error occurred during the request - {e}")
+    return None
 
 def query_llm(payload):
     """Sends the request to the Hugging Face Inference API."""
@@ -47,10 +66,12 @@ def query_llm(payload):
         response = requests.post(API_URL, headers=headers, json=payload, timeout=120)
         response.raise_for_status()
         return response.json()
+    except HTTPError as e:
+        print(f"API request failed with HTTP error: {e.response.status_code}")
+        print(f"Error details: {e.response.text}")
+        raise
     except RequestException as e:
         print(f"API request failed: {e}")
-        if hasattr(e, 'response') and e.response is not None:
-            print(f"Response content: {e.response.text}")
         raise
 
 def generate_report(data):
@@ -91,8 +112,14 @@ Write the report in Markdown.
     
     raise ValueError("Unexpected API response format.")
 
-def main(url):
+def main():
     """Main function to run the full process."""
+    if len(sys.argv) < 2:
+        print("Usage: python report_generator.py <url>")
+        sys.exit(1)
+        
+    url = sys.argv[1]
+    
     try:
         print(f"🚀 Starting SEO audit for {url}...")
         seo_data = fetch_seo_data(url)
@@ -101,22 +128,22 @@ def main(url):
             print("✨ Generating AI report...")
             report_content = generate_report(seo_data)
             
-            with open("seo_report.md", "w", encoding="utf-8") as f:
+            output_file = "seo_report.md"
+            with open(output_file, "w", encoding="utf-8") as f:
                 f.write(report_content)
                 
-            print("✅ Professional AI SEO report saved to seo_report.md")
+            print(f"✅ Professional AI SEO report saved to {output_file}")
         else:
             print("❌ Audit failed. Report could not be generated.")
-            exit(1)
+            sys.exit(1)
             
+    except (RequestException, ValueError) as e:
+        print(f"An error occurred during report generation: {e}")
+        sys.exit(1)
     except Exception as e:
         print(f"An unexpected error occurred: {e}")
-        exit(1)
+        sys.exit(1)
 
 if __name__ == "__main__":
-    if len(sys.argv) > 1:
-        main(sys.argv[1])
-    else:
-        print("Usage: python report_generator.py <url>")
-        exit(1)
+    main()
 
