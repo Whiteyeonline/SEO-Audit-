@@ -1,26 +1,49 @@
-# SEO Audit with AI-Powered Reports
+# 🚀 Simple One-Page SEO Audit Tool
 
-This project runs an SEO audit on any website and generates a **professional AI-enhanced report**.
+This project provides a simple, two-step workflow for performing a one-page SEO audit. It is designed to be used on a local machine or as part of a GitHub Actions workflow.
 
-## 🚀 Features
-- Checks meta tags, headings, links, images, mobile friendliness
-- Measures page speed & content length
-- Keyword analysis (top keywords, density, placement)
-- Detects broken links
-- Generates **AI-powered professional report** (Markdown)
+### ⚙️ Workflow
 
-## 📂 Files
-- `seo_audit.py` → Runs the audit, outputs `seo_data.json`
-- `report_generator.py` → Uses Hugging Face AI to generate `seo_report.md`
-- `.github/workflows/seo_audit.yml` → GitHub Actions automation
+The process consists of two main parts:
 
-## 🔑 Setup
-1. Get a free [Hugging Face API token](https://huggingface.co/settings/tokens)
-2. In GitHub → Repo → Settings → Secrets → Actions  
-   Add: `HF_API_TOKEN` = your token
+1.  **Data Collection (`main.py`)**: This script crawls a given URL, fetches on-page SEO data (like title tags, meta descriptions, headings, and links), and saves the results into a raw `seo_data.json` file.
+    
+    **How to use:**
+    
+    ```bash
+    python main.py [https://your-website.com](https://your-website.com)
+    ```
+    
+2.  **Report Generation (`report_generator.py`)**: This script reads the `seo_data.json` file and transforms the raw data into a human-readable, formatted SEO report in Markdown (`seo_report.md`). No external APIs or AI models are used for this step.
+    
+    **How to use:**
+    
+    ```bash
+    python report_generator.py seo_data.json
+    ```
 
-## ▶️ Usage
-Run locally:
-```bash
-python seo_audit.py https://example.com
-python report_generator.pypython report_generator.py
+### 📦 Setup
+
+1.  **Clone the repository:**
+    
+    ```bash
+    git clone [your-repo-url]
+    cd [your-repo-name]
+    ```
+    
+2.  **Install dependencies:**
+    
+    ```bash
+    pip install -r requirements.txt
+    ```
+    
+3.  **Run the audit:**
+    
+    Follow the workflow steps above to generate your report.
+
+### 📝 Files
+
+* `main.py`: The script for crawling a URL and collecting raw SEO data.
+* `report_generator.py`: The script for transforming the raw data into a formatted report.
+* `requirements.txt`: The list of Python dependencies required for the project.
+* `README.md`: This file.
