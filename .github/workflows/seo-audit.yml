@@ -22,22 +22,17 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install -r requirements.txt
-          # The requirements.txt file will need to include requests, beautifulsoup4, reportlab, and other dependencies.
+          pip install requests beautifulsoup4
 
       - name: Run SEO Data Collection
         run: python main.py "${{ github.event.inputs.url }}"
 
-      - name: Run AI Report Generation
-        env:
-          HF_API_TOKEN: ${{ secrets.HF_API_TOKEN }}
+      - name: Generate Report
         run: python report_generator.py seo_data.json
 
-      - name: Upload Markdown and PDF Reports
+      - name: Upload Report
         uses: actions/upload-artifact@v4
         with:
-          name: seo-reports
-          path: |
-            seo_report.md
-            seo_report.pdf
-            
+          name: seo-report
+          path: seo_report.md
+          
