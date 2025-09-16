@@ -1,152 +1,90 @@
 # report_generator.py
-import os
-import requests
 import json
 import sys
 import argparse
-from requests.exceptions import RequestException, HTTPError
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
-from reportlab.lib.styles import getSampleStyleSheet
-from reportlab.lib.pagesizes import letter
-from reportlab.lib.units import inch
-
-# 🌟 API Configuration: Ensure your environment variable is set.
-# Get your token from https://huggingface.co/settings/tokens
-API_URL = "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.2"
-API_TOKEN = os.getenv("HF_API_TOKEN")
-
-# Headers for the API request
-headers = {
-    "Authorization": f"Bearer {API_TOKEN}",
-    "Content-Type": "application/json"
-}
-
-def query_llm(payload):
-    """Communicates with the AI to conjure the report."""
-    try:
-        response = requests.post(API_URL, headers=headers, json=payload, timeout=120)
-        response.raise_for_status()
-        return response.json()
-    except HTTPError as e:
-        if e.response.status_code == 404:
-            print(f"🚫 API Error: The model {API_URL} was not found.")
-            print("This could mean the URL is wrong, or the model is not hosted on the free Inference API.")
-        elif e.response.status_code == 401:
-            print("🚫 API Error: Authentication failed. Is your HF_API_TOKEN correct?")
-        else:
-            print(f"🚫 API Error: {e.response.status_code} - {e.response.text}")
-        raise
-    except RequestException as e:
-        print(f"🚫 API Request failed: {e}")
-        raise
 
 def generate_report(data):
-    """Generates the report using the LLM."""
+    """Generates a human-readable SEO report from raw JSON data."""
     if not data:
-        return "Report could not be generated due to missing data."
+        return "Error: No data provided for report generation."
+
+    report = f"# SEO Audit Report for {data.get('url', 'N/A')}\n\n"
+    report += f"**Date of Audit:** {data.get('timestamp', 'N/A')}\n\n"
     
-    prompt = f"""
-[INST]
-You are a world-class SEO strategist. Generate a comprehensive and professional SEO audit report for a website based on the following raw data. The tone should be authoritative and insightful.
+    # 📋 Summary
+    report += "## 📋 Executive Summary\n"
+    report += "This report provides a one-page SEO audit based on a recent crawl. It identifies key on-page SEO elements and potential issues.\n\n"
 
-Data:
-{json.dumps(data, indent=2)}
-
-The report must contain the following sections, formatted in polished Markdown:
-- 📈 **SEO Health Score:** A single number out of 100, followed by a brief justification.
-- 🎯 **Executive Summary:** A concise, high-level overview of the site's SEO standing.
-- ✅ **Key Findings & Recommendations:** A bulleted list using ✅ and ❌ emojis to highlight positive and negative points. For each ❌, provide a clear, actionable solution.
-- 🔗 **Technical SEO Audit:** Specific notes on technical elements like title tags, meta descriptions, and status codes.
-- 📊 **Visual Insights:** A suggestion for a simple chart or graph that would effectively represent a key finding.
-- 📄 **Raw Data Appendix:** Include the raw input data at the end for reference.
-
-[/INST]
-"""
-    payload = {
-        "inputs": prompt,
-        "parameters": {
-            "max_new_tokens": 2048,
-            "return_full_text": False,
-        }
-    }
+    # 🔗 Technical SEO
+    report += "## 🔗 Technical SEO\n"
+    report += f"- **Canonical URL:** {'✅' if 'canonical_url' in data and data['canonical_url'] != 'Missing' else '❌'} {data.get('canonical_url', 'N/A')}\n"
+    report += f"- **robots.txt:** {'✅' if data.get('robots_txt_exists', False) else '❌'} `robots.txt` file found.\n"
+    report += f"- **Mobile-Friendly:** {'✅' if data.get('mobile_friendly', False) else '❌'} Viewport meta tag detected.\n\n"
     
-    output = query_llm(payload)
+    # 📝 Content & Keywords
+    report += "## 📝 Content & Keywords\n"
+    report += f"- **Title Tag:** {data.get('title', 'N/A')}\n"
+    report += f"- **Meta Description:** {data.get('description', 'N/A')}\n"
+    report += f"- **Word Count:** {data.get('word_count', 'N/A')} words.\n"
     
-    if isinstance(output, list) and output:
-        return output[0].get("generated_text", "Error: No generated text found.")
+    headings = data.get('headings', {})
+    report += f"- **Headings:** H1 ({headings.get('h1', 0)}), H2 ({headings.get('h2', 0)}), H3 ({headings.get('h3', 0)}), etc.\n\n"
     
-    raise ValueError("Unexpected API response format.")
+    report += "### Top Keywords\n"
+    if data.get('keywords', {}).get('top_keywords'):
+        for keyword in data['keywords']['top_keywords']:
+            report += f" - {keyword}\n"
+    else:
+        report += " - No top keywords found.\n"
+    report += "\n"
 
-def save_as_pdf(report_content, filename="seo_report.pdf"):
-    """Saves the Markdown report to a beautiful PDF."""
-    try:
-        doc = SimpleDocTemplate(filename, pagesize=letter, rightMargin=inch, leftMargin=inch, topMargin=inch, bottomMargin=inch)
-        styles = getSampleStyleSheet()
-        story = []
+    # 🖼️ Images & Links
+    report += "## 🖼️ Images & Links\n"
+    report += f"- **Total Images:** {data.get('image_total', 0)}\n"
+    report += f"- **Images Missing ALT:** {data.get('image_missing_alt', 0)}\n"
+    report += f"- **Internal Links:** {data.get('internal_links', 0)}\n"
+    report += f"- **External Links:** {data.get('external_links', 0)}\n"
+    
+    broken_links = data.get('broken_links', [])
+    if broken_links:
+        report += "- **Broken Links:** ❌ Found the following broken links:\n"
+        for link in broken_links:
+            report += f"  - {link}\n"
+    else:
+        report += "- **Broken Links:** ✅ No broken links found.\n"
+    report += "\n"
 
-        lines = report_content.split('\n')
-        for line in lines:
-            if line.strip().startswith('###'):
-                style = styles['h2']
-                story.append(Paragraph(line.strip('###').strip(), style))
-            elif line.strip().startswith('##'):
-                style = styles['h3']
-                story.append(Paragraph(line.strip('##').strip(), style))
-            elif line.strip().startswith('-'):
-                story.append(Paragraph(line.strip('-').strip(), styles['Normal']))
-            else:
-                story.append(Paragraph(line.replace('\n', '<br/>'), styles['Normal']))
-            story.append(Spacer(1, 0.2 * inch))
-
-        doc.build(story)
-        print(f"📄 PDF report successfully saved to {filename}")
-    except Exception as e:
-        print(f"🚫 Failed to save PDF: {e}")
+    # 📄 Raw Data Appendix
+    report += "## 📄 Raw Data Appendix\n"
+    report += "```json\n"
+    report += json.dumps(data, indent=2)
+    report += "\n```\n"
+    
+    return report
 
 def main():
-    """Main function to run the full process from a JSON file."""
-    parser = argparse.ArgumentParser(description="🚀 Professional AI SEO Report Generator")
-    parser.add_argument("file_path", help="The path to the JSON file to audit (e.g., seo_data.json)")
+    """Main function to run the report generation from a JSON file."""
+    parser = argparse.ArgumentParser(description="📋 SEO Report Generator from JSON data")
+    parser.add_argument("file_path", help="The path to the JSON data file (e.g., seo_data.json)")
     args = parser.parse_args()
     
-    print(f"🚀 Starting AI-powered SEO report generation from {args.file_path}...")
-
-    # Check for the API token at the top for early exit
-    if not API_TOKEN:
-        print("🚨 Error: HF_API_TOKEN environment variable is not set. Please set it to your Hugging Face API key.")
-        sys.exit(1)
-
     try:
-        # Load the SEO data from the JSON file
         with open(args.file_path, 'r', encoding='utf-8') as f:
             seo_data = json.load(f)
+        
+        report_content = generate_report(seo_data)
+        
+        with open("seo_report.md", "w", encoding="utf-8") as f:
+            f.write(report_content)
+            
+        print("✅ SEO report saved to seo_report.md")
 
-        if seo_data:
-            print("✨ Generating a professional AI report...")
-            report_content = generate_report(seo_data)
-            
-            # Save as Markdown
-            md_path = "seo_report.md"
-            with open(md_path, "w", encoding="utf-8") as f:
-                f.write(report_content)
-            print(f"✅ AI SEO report saved to {md_path}")
-            
-            # Save as PDF
-            save_as_pdf(report_content)
-        else:
-            print("❌ Audit failed. Report could not be generated.")
-            sys.exit(1)
-            
     except FileNotFoundError:
-        print(f"🚨 Error: The file {args.file_path} was not found.")
-        sys.exit(1)
-    except (RequestException, ValueError) as e:
-        print(f"🚨 An error occurred during report generation: {e}")
+        print(f"Error: The file {args.file_path} was not found.")
         sys.exit(1)
     except Exception as e:
-        print(f"🚨 An unexpected error occurred: {e}")
+        print(f"An unexpected error occurred: {e}")
         sys.exit(1)
 
 if __name__ == "__main__":
     main()
-        
