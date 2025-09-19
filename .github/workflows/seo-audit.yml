@@ -1,10 +1,10 @@
-name: SEO Audit
+name: On-Page SEO Audit
 
 on:
   workflow_dispatch:
     inputs:
       url:
-        description: 'Enter the website URL to audit'
+        description: 'Website URL for audit'
         required: true
         default: 'https://example.com'
 
@@ -12,27 +12,28 @@ jobs:
   audit:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Repo
+      - name: Checkout
         uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v4
         with:
-          python-version: '3.10'
+          python-version: '3.11'
 
       - name: Install dependencies
-        run: |
-          pip install requests beautifulsoup4
+        run: pip install -r requirements.txt
 
-      - name: Run SEO Data Collection
-        run: python seo_audit.py "${{ github.event.inputs.url }}"
+      - name: Run On-Page Audit
+        run: python aggregator.py --url "${{ github.event.inputs.url }}"
 
-      - name: Generate Report
-        run: python report_generator.py seo_data.json
-
-      - name: Upload Report
+      - name: Upload PDF
         uses: actions/upload-artifact@v4
         with:
-          name: seo-report
-          path: seo_report.md
-          
+          name: seo-onpage-report
+          path: report.pdf
+
+      - name: Upload JSON result
+        uses: actions/upload-artifact@v4
+        with:
+          name: seo-onpage-json
+          path: result.json
