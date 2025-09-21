@@ -1,176 +1,123 @@
 # report_generator.py
-import json, html, os
-from reportlab.lib.pagesizes import letter
+import json
+import matplotlib.pyplot as plt
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image
 from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.units import inch
 from reportlab.lib import colors
-import matplotlib.pyplot as plt
 
-def _safe_text(x):
-    if x is None:
-        return ""
-    if isinstance(x, (dict, list)):
-        return html.escape(json.dumps(x, ensure_ascii=False, indent=0))
-    return html.escape(str(x))
 
-def _draw_headings_chart(headings_counts, out_path="/tmp/headings.png"):
-    # headings_counts: dict h1..h6
-    labels = []
-    values = []
-    for i in range(1,7):
-        k = f"h{i}"
-        labels.append(k.upper())
-        values.append(headings_counts.get(k,0))
-    plt.figure(figsize=(6,2.5))
-    plt.bar(labels, values)  # no custom colors
-    plt.title("Headings distribution (H1..H6)")
+# ---------- Pie chart helpers ----------
+def make_pie_chart(data_dict, title, out_path):
+    if not data_dict or not isinstance(data_dict, dict):
+        return None
+    labels = list(data_dict.keys())
+    values = list(data_dict.values())
+
+    plt.figure(figsize=(4, 4))
+    plt.pie(values, labels=labels, autopct='%1.1f%%', startangle=140)
+    plt.title(title)
     plt.tight_layout()
     plt.savefig(out_path, dpi=150)
     plt.close()
     return out_path
 
-def compute_grade(data):
-    score = 0
-    weight_total = 0
-    def add(w, ok):
-        nonlocal score, weight_total
-        weight_total += w
-        if ok:
-            score += w
-    add(10, data.get("title",{}).get("ok",False))
-    add(10, data.get("meta_description",{}).get("ok",False))
-    add(8, data.get("headings",{}).get("has_one_h1", False))
-    add(15, data.get("content",{}).get("word_count",0) >= 300)
-    add(10, data.get("images",{}).get("missing_alt_count",0) == 0)
-    add(10, data.get("links",{}).get("broken_count",0) == 0)
-    add(7, bool(data.get("canonical",{}).get("canonical")))
-    add(4, data.get("robots_txt",{}).get("found", False))
-    add(4, data.get("sitemap",{}).get("found", False))
-    add(6, data.get("viewport",{}))
-    add(6, data.get("https",{}).get("final_https", False))
-    percent = int(round(100 * score / (weight_total or 1)))
-    if percent >= 90:
-        grade="A"
-    elif percent >= 80:
-        grade="B"
-    elif percent >= 70:
-        grade="C"
-    elif percent >= 60:
-        grade="D"
-    else:
-        grade="F"
-    return {"score": percent, "grade": grade}
 
-def generate_pdf(data, out="report.pdf"):
+# ---------- PDF generator ----------
+def generate_pdf(data, out_pdf="SEO_Report.pdf"):
     styles = getSampleStyleSheet()
-    doc = SimpleDocTemplate(out, pagesize=letter)
+    doc = SimpleDocTemplate(out_pdf, pagesize=A4, rightMargin=36, leftMargin=36, topMargin=36, bottomMargin=36)
     elems = []
 
-    title = data.get("final_url") or data.get("url")
-    elems.append(Paragraph(_safe_text(f"On-Page SEO Audit — {title}"), styles['Title']))
-    elems.append(Spacer(1,8))
+    url = data.get("final_url") or data.get("url", "Unknown")
+    score = data.get("score", "N/A")
+    grade = "A" if isinstance(score, int) and score >= 90 else \
+            "B" if isinstance(score, int) and score >= 80 else \
+            "C" if isinstance(score, int) and score >= 70 else \
+            "D" if isinstance(score, int) and score >= 60 else "F"
 
-    # Grade
-    grade = compute_grade(data)
-    elems.append(Paragraph(f"<b>Overall Grade:</b> {grade['grade']}  —  Score {grade['score']}%", styles['Heading2']))
-    elems.append(Spacer(1,8))
+    # Title
+    elems.append(Paragraph(f"<b>SEO Audit Summary</b>", styles["Title"]))
+    elems.append(Spacer(1, 0.2 * inch))
 
-    # Issues & actionable recommendations
-    elems.append(Paragraph("<b>Issues & Recommendations</b>", styles['Heading3']))
-    if data.get("issues"):
-        for it in data["issues"]:
-            elems.append(Paragraph("- " + _safe_text(it), styles['Normal']))
+    # Executive Summary
+    summary = f"""
+    This audit for <b>{url}</b> achieved a score of <b>{score}/100 (Grade {grade})</b>.
+    The page has good content length and basic optimizations, but also shows issues
+    that should be addressed to improve SEO performance.
+    """
+    elems.append(Paragraph(summary, styles["Normal"]))
+    elems.append(Spacer(1, 0.3 * inch))
+
+    # Key Findings
+    elems.append(Paragraph("<b>Key Findings</b>", styles["Heading2"]))
+    findings = data.get("issues", [])
+    if findings:
+        for issue in findings[:5]:  # show first 5 only
+            elems.append(Paragraph(f"• {issue}", styles["Normal"]))
     else:
-        elems.append(Paragraph("No high priority issues detected.", styles['Normal']))
-    elems.append(Spacer(1,8))
+        elems.append(Paragraph("✅ No major issues found.", styles["Normal"]))
+    elems.append(Spacer(1, 0.3 * inch))
 
-    # Recommendations (concrete)
-    rec = data.get("recommendations", {})
-    elems.append(Paragraph("<b>Recommended Title (edit as needed)</b>", styles['Heading4']))
-    elems.append(Paragraph(_safe_text(rec.get("suggested_title","")), styles['Normal']))
-    elems.append(Spacer(1,6))
-    elems.append(Paragraph("<b>Recommended Meta Description (edit as needed)</b>", styles['Heading4']))
-    elems.append(Paragraph(_safe_text(rec.get("suggested_meta","")), styles['Normal']))
-    elems.append(Spacer(1,12))
-
-    # Details table
-    elems.append(Paragraph("<b>On-Page Details</b>", styles['Heading3']))
+    # Details Table
+    elems.append(Paragraph("<b>Audit Details</b>", styles["Heading2"]))
     rows = [
-        ["Item", "Summary / Value"],
-        ["HTTP Status", _safe_text(data.get("http_status"))],
-        ["Title", _safe_text(data.get("title",{}).get("value")) + f" ({data.get('title',{}).get('length')})"],
-        ["Meta Description", _safe_text(data.get("meta_description",{}).get("value")) + f" ({data.get('meta_description',{}).get('length')})"],
-        ["Headings (H1..H6)", _safe_text(data.get("headings",{}).get("counts"))],
-        ["Word Count", _safe_text(data.get("content",{}).get("word_count"))],
-        ["Readability (Flesch Reading Ease)", _safe_text(data.get("readability",{}).get("flesch_reading_ease"))],
-        ["Images total / missing alt", f"{data.get('images',{}).get('total')} / {data.get('images',{}).get('missing_alt_count')}"],
-        ["Links total / checked / broken", f"{data.get('links',{}).get('total')} / {data.get('links',{}).get('checked')} / {data.get('links',{}).get('broken_count')}"],
-        ["Canonical", _safe_text(data.get("canonical",{}).get("canonical"))],
-        ["Schema blocks", _safe_text(data.get("schema",{}).get("schema_blocks"))],
-        ["Viewport", _safe_text(data.get("viewport"))],
-        ["HTTPS final", _safe_text(data.get("https",{}).get("final_https"))],
-        ["Robots.txt found", _safe_text(data.get("robots_txt",{}).get("found"))],
-        ["Sitemap found", _safe_text(data.get("sitemap",{}).get("found"))]
+        ["Title", f"{data.get('title',{}).get('value','')} ({data.get('title',{}).get('length','N/A')} chars)"],
+        ["Meta Description", f"{data.get('meta_description',{}).get('value','')} ({data.get('meta_description',{}).get('length','N/A')} chars)"],
+        ["Word Count", str(data.get('content',{}).get('word_count','N/A'))],
+        ["Headings", str(data.get('headings',{}).get('counts',''))],
+        ["Images (total/missing alt)", f"{data.get('images',{}).get('total','N/A')} / {data.get('images',{}).get('missing_alt','N/A')}"],
+        ["Links (total/internal/external/broken)", f"{data.get('links',{}).get('total','N/A')} / {data.get('links',{}).get('internal','N/A')} / {data.get('links',{}).get('external','N/A')} / {data.get('links',{}).get('broken','N/A')}"],
+        ["Canonical", str(data.get('canonical',{}).get('canonical','N/A'))],
+        ["Robots.txt Found", str(data.get('robots_txt',{}).get('found','N/A'))],
+        ["Sitemap Found", str(data.get('sitemap',{}).get('found','N/A'))],
+        ["HTTPS", str(data.get('https',{}).get('final_https','N/A'))],
+        ["Viewport", str(data.get('viewport','N/A'))],
     ]
-    tbl = Table(rows, colWidths=[170, 350])
-    tbl.setStyle(TableStyle([
+
+    table = Table(rows, colWidths=[180, 330])
+    table.setStyle(TableStyle([
         ("BACKGROUND", (0,0), (-1,0), colors.HexColor("#f0f0f0")),
-        ("GRID", (0,0), (-1,-1), 0.3, colors.grey),
+        ("TEXTCOLOR", (0,0), (-1,0), colors.black),
+        ("GRID", (0,0), (-1,-1), 0.5, colors.grey),
+        ("FONTNAME", (0,0), (-1,0), "Helvetica-Bold"),
+        ("ALIGN", (0,0), (-1,-1), "LEFT"),
         ("VALIGN", (0,0), (-1,-1), "MIDDLE"),
+        ("FONTSIZE", (0,0), (-1,-1), 9),
         ("LEFTPADDING", (0,0), (-1,-1), 6),
         ("RIGHTPADDING", (0,0), (-1,-1), 6),
     ]))
-    elems.append(tbl)
-    elems.append(Spacer(1,12))
+    elems.append(table)
+    elems.append(Spacer(1, 0.3 * inch))
 
-    # Headings chart
-    try:
-        image_path = _draw_headings_chart(data.get("headings",{}).get("counts", {}))
-        elems.append(Paragraph("<b>Headings distribution</b>", styles['Heading4']))
-        elems.append(Image(image_path, width=420, height=150))
-        elems.append(Spacer(1,12))
-    except Exception:
-        pass
+    # Charts
+    # Pie chart for headings
+    headings_counts = data.get("headings", {}).get("counts", {})
+    hpath = make_pie_chart(headings_counts, "Headings Distribution", "headings_pie.png")
+    if hpath:
+        elems.append(Paragraph("<b>Headings Distribution</b>", styles["Heading2"]))
+        elems.append(Image(hpath, width=300, height=300))
+        elems.append(Spacer(1, 0.3 * inch))
 
-    # Top keywords
-    elems.append(Paragraph("<b>Top Keywords</b>", styles['Heading3']))
-    kws = data.get("keywords",{}).get("top", [])
-    if kws:
-        for item in kws:
-            elems.append(Paragraph(f"- {item['keyword']} (count: {item['count']})", styles['Normal']))
-    else:
-        elems.append(Paragraph("No keywords extracted.", styles['Normal']))
-    elems.append(Spacer(1,12))
-
-    # Broken links list (first 30)
-    elems.append(Paragraph("<b>Broken Links (first 30)</b>", styles['Heading3']))
-    bl = data.get("links",{}).get("broken_list", [])
-    if bl:
-        for b in bl[:30]:
-            status = b.get("status") if b.get("status") else b.get("error","")
-            elems.append(Paragraph(f"- {_safe_text(b.get('url'))}  (status: {_safe_text(status)})", styles['Normal']))
-    else:
-        elems.append(Paragraph("No broken links detected (in checked sample).", styles['Normal']))
-    elems.append(Spacer(1,12))
-
-    # Images examples
-    elems.append(Paragraph("<b>Image examples (first 20)</b>", styles['Heading3']))
-    imgs = data.get("images",{}).get("images", [])
-    if imgs:
-        for i in imgs[:20]:
-            elems.append(Paragraph(f"- {i.get('src')} (alt: {html.escape(i.get('alt') or '')})", styles['Normal']))
-    else:
-        elems.append(Paragraph("No images detected.", styles['Normal']))
-    elems.append(Spacer(1,12))
-
-    # Schema sample
-    elems.append(Paragraph("<b>Schema sample (truncated)</b>", styles['Heading3']))
-    schema_samples = data.get("schema",{}).get("sample", [])
-    if schema_samples:
-        for s in schema_samples[:3]:
-            elems.append(Paragraph("<pre>" + _safe_text(s[:1000]) + "</pre>", styles['Normal']))
-    else:
-        elems.append(Paragraph("No schema JSON-LD found.", styles['Normal']))
-    elems.append(Spacer(1,12))
+    # Pie chart for links
+    links = data.get("links", {})
+    link_data = {
+        "Internal": links.get("internal", 0),
+        "External": links.get("external", 0),
+        "Broken": links.get("broken", 0),
+    }
+    lpath = make_pie_chart(link_data, "Links Breakdown", "links_pie.png")
+    if lpath:
+        elems.append(Paragraph("<b>Links Breakdown</b>", styles["Heading2"]))
+        elems.append(Image(lpath, width=300, height=300))
+        elems.append(Spacer(1, 0.3 * inch))
 
     doc.build(elems)
+    return out_pdf
+
+
+if __name__ == "__main__":
+    with open("seo_data.json", "r", encoding="utf-8") as f:
+        data = json.load(f)
+    generate_pdf(data)
