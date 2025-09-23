@@ -1,0 +1,8 @@
+requests
+beautifulsoup4
+lxml
+validators
+textdistance
+playwright
+playwright-lighthous
+huggingface-hub
