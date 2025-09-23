@@ -4,5 +4,5 @@ lxml
 validators
 textdistance
 playwright
-playwright-lighthous
+playwright-lighthousereport
 huggingface-hub
