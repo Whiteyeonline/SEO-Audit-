@@ -31,7 +31,7 @@ jobs:
           HUGGING_FACE_TOKEN: ${{ secrets.HUGGING_FACE_TOKEN }} # <--- Put it here!
 
       - name: Upload Report
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: seo-report-${{ github.event.inputs.url }}
           path: |
