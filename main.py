@@ -33,7 +33,7 @@ def seo_audit(url):
     results["checks"]["keywords"] = keyword_analysis.run(url, html_content)
     results["checks"]["performance"] = performance_check.run(url)
     results["checks"]["url_structure"] = url_structure.run(url)
-    results["checks"]["internal_links"] = internal_links.run(url)
+    results["checks"]["internal_links"] = internal_links.run(url, html_content) # FIX: Added html_content
     results["checks"]["backlinks"] = backlinks_check.run(url)
     results["checks"]["accessibility"] = accessibility_check.run(url, html_content)
 
@@ -47,3 +47,4 @@ if __name__ == "__main__":
     print(f"Starting SEO audit for: {url}")
     audit_results = seo_audit(url)
     print("Audit complete. Report generated.")
+    
