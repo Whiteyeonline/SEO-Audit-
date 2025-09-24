@@ -26,8 +26,7 @@ jobs:
 
       - name: Download NLTK data
         run: |
-          python -m nltk.downloader punkt
-          python -m nltk.downloader stopwords
+          python -c "import nltk; nltk.download('punkt', quiet=True); nltk.download('stopwords', quiet=True)"
           
       - name: Run SEO Audit and Generate Report
         run: python main.py
