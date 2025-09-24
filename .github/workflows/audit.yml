@@ -28,7 +28,8 @@ jobs:
         run: python main.py
         env:
           AUDIT_URL: ${{ github.event.inputs.url }}
-          HUGGING_FACE_TOKEN: ${{ secrets.HUGGING_FACE_TOKEN }} # <--- Put it here!
+          HUGGING_FACE_TOKEN: ${{ secrets.HUGGING_FACE_TOKEN }}
+          PYTHONPATH: ${{ github.workspace }}
 
       - name: Upload Report
         uses: actions/upload-artifact@v4
@@ -37,4 +38,4 @@ jobs:
           path: |
             reports/output.json
             reports/output.md
-            
+
