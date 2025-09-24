@@ -5,3 +5,4 @@ validators
 textdistance
 playwright
 huggingface-hub
+nltk
