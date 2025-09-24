@@ -1,6 +1,6 @@
 # checks/backlinks_check.py
 import re
-from google import search # Corrected import statement
+from googlesearch import search # Corrected import statement
 
 def run(url, html_content=None):
     try:
