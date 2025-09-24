@@ -5,5 +5,5 @@ validators
 textdistance
 playwright
 huggingface-hub
-nltk
+textblob
 googlesearch-python
