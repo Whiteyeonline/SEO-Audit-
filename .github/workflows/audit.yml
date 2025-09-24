@@ -32,7 +32,7 @@ jobs:
           PYTHONPATH: ${{ github.workspace }}
 
       - name: Upload Report
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: seo-report-${{ github.event.inputs.url }}
           path: |
