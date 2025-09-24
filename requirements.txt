@@ -6,4 +6,4 @@ textdistance
 playwright
 huggingface-hub
 nltk
-googlesearch
+google
