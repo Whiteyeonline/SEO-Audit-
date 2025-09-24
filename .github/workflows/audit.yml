@@ -27,6 +27,12 @@ jobs:
       - name: Download TextBlob corpora
         run: python -m textblob.download_corpora
 
+      - name: Sanitize URL for Artifact Name
+        id: sanitize_url
+        run: |
+          SANITIZED_URL=$(echo "${{ github.event.inputs.url }}" | sed -e 's|https://||' -e 's|http://||' -e 's|[/.:?*&<>]|-|g')
+          echo "artifact_name=seo-report-${SANITIZED_URL}" >> "$GITHUB_ENV"
+
       - name: Run SEO Audit and Generate Report
         run: python main.py
         env:
@@ -37,7 +43,7 @@ jobs:
       - name: Upload Report
         uses: actions/upload-artifact@v4
         with:
-          name: seo-report-${{ github.event.inputs.url }}
+          name: ${{ env.artifact_name }}
           path: |
             reports/output.json
             reports/output.md
