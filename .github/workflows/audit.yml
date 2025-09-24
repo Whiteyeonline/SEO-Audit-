@@ -23,10 +23,6 @@ jobs:
         run: |
           pip install -r requirements.txt
           playwright install --with-deps
-
-      - name: Download NLTK data
-        run: |
-          python -c "import nltk; nltk.download('punkt', quiet=True); nltk.download('stopwords', quiet=True)"
           
       - name: Run SEO Audit and Generate Report
         run: python main.py
