@@ -1,9 +1,7 @@
 requests
 beautifulsoup4
 lxml
+tldextract
+markdown
 validators
-textdistance
-playwright
-huggingface-hub
 textblob
-googlesearch-python
