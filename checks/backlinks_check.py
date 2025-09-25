@@ -1,16 +1,28 @@
-import requests, re
 from bs4 import BeautifulSoup
+from urllib.parse import urlparse
 
-def run(url, html_content=None):
-    """
-    Simple backlinks check using DuckDuckGo search results (free).
-    """
-    domain = re.sub(r'https?://(?:www\.)?', '', url).split('/')[0]
-    try:
-        search_url = f"https://html.duckduckgo.com/html/?q=link:{domain}"
-        r = requests.get(search_url, timeout=5)
-        soup = BeautifulSoup(r.text, "lxml")
-        links = [a['href'] for a in soup.find_all('a', href=True)][:5]  # top 5
-        return {"found_backlinks": links}
-    except:
-        return {"found_backlinks": []}
+def run(url, html):
+    """Free backlink-like check. Counts internal/external links."""
+    soup = BeautifulSoup(html, "lxml")
+    domain = urlparse(url).netloc
+
+    internal_links = []
+    external_links = []
+
+    for tag in soup.find_all("a", href=True):
+        href = tag["href"]
+        if href.startswith("http"):
+            if domain in href:
+                internal_links.append(href)
+            else:
+                external_links.append(href)
+
+    unique_external_domains = list(set(urlparse(link).netloc for link in external_links))
+
+    return {
+        "status": "pass",
+        "internal_link_count": len(internal_links),
+        "external_link_count": len(external_links),
+        "sample_external_domains": unique_external_domains[:10],
+        "note": "Basic free check. Real backlink data needs premium APIs."
+    }
