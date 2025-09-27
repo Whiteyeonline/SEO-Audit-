@@ -1,7 +1,9 @@
 requests
 beautifulsoup4
 lxml
-tldextract
-markdown
+tldextract # Note: Not used in current checks, but often useful.
+markdown # Not strictly necessary if only generating MD, but helpful.
 validators
 textblob
+textstat # New dependency for content quality
+pypiwin32 # Dependency for textstat if running on Windows
