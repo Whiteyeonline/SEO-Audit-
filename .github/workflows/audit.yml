@@ -6,7 +6,7 @@ on:
       url:
         description: 'Website URL to audit'
         required: true
-        default: 'https://example.com'
+        default: 
 
 jobs:
   seo-audit:
