@@ -2,12 +2,12 @@ import os
 from utils.fetcher import fetch_html
 from utils.report_writer import write_report
 from checks import (
-    meta_check, heading_check, image_check, # Renamed to standard
-    link_check, ssl_check, robots_sitemap, # sitemap_check is now integrated into robots_sitemap
+    meta_check, heading_check, image_check,
+    link_check, ssl_check, robots_sitemap,
     schema_check, keyword_analysis, performance_check,
     url_structure, internal_links, backlinks_check,
-    accessibility_check, mobile_friendly_check, # Renamed
-    canonical_check, content_quality # Added missing checks
+    accessibility_check, mobile_friendly_check,
+    canonical_check, content_quality
 )
 
 def calculate_seo_score(results):
@@ -40,13 +40,13 @@ def seo_audit(url):
         "ssl": ssl_check.run(url),
         "robots_sitemap": robots_sitemap.run(url),
         "url_structure": url_structure.run(url),
-        "canonical": canonical_check.run(url, html_content), # New
+        "canonical": canonical_check.run(url, html_content),
         "schema": schema_check.run(url, html_content),
 
         # On-Page Checks
         "meta": meta_check.run(url, html_content),
         "headings": heading_check.run(url, html_content),
-        "content": content_quality.run(url, html_content), # New
+        "content": content_quality.run(url, html_content),
         "keywords": keyword_analysis.run(url, html_content),
         "images": image_check.run(url, html_content),
 
@@ -56,7 +56,7 @@ def seo_audit(url):
         "performance": performance_check.run(url),
         "accessibility": accessibility_check.run(url, html_content),
         "mobile": mobile_friendly_check.run(url, html_content),
-        "backlinks": backlinks_check.run(url, html_content), # Simple external link check
+        "backlinks": backlinks_check.run(url, html_content),
     }
 
     # Calculate Score
@@ -69,8 +69,10 @@ def seo_audit(url):
     return results
 
 if __name__ == "__main__":
-    # Removed the use of os.getenv for simplicity in this context.
-    url = "https://example.com" # Placeholder. Use an actual URL for real audit.
+    # --- FIX APPLIED HERE: Reads URL from the environment variable ---
+    url = os.getenv("AUDIT_URL", "https://example.com")
+    # ------------------------------------------------------------------
+    
     print(f"Starting SEO audit for: {url}")
     audit_results = seo_audit(url)
     print("Audit complete. Reports generated in /reports")
