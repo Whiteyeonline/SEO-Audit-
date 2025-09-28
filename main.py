@@ -7,7 +7,7 @@ from scrapy.settings import Settings
 from crawler.spider import SEOSpider
 from utils.report_writer import write_summary_report, calculate_seo_score_full
 from checks import (
-    ssl_check, robots_sitemap # Only run these once per domain
+    ssl_check, robots_sitemap, performance_check # ⬅️ performance_check IMPORTED
 )
 
 # Load Scrapy settings from local file for granular control
@@ -15,23 +15,24 @@ CUSTOM_SETTINGS = {
     'USER_AGENT': 'ProfessionalSEOAgency (+https://github.com/your-repo)',
     'ROBOTSTXT_OBEY': False,
     'CONCURRENT_REQUESTS': 8,
-    'DOWNLOAD_DELAY': 0.5, # Reduced delay to speed up, but be mindful of the server
+    'DOWNLOAD_DELAY': 0.5, 
     'LOG_LEVEL': 'INFO',
     'FEED_FORMAT': 'json',
     'FEED_URI': 'reports/crawl_results.json',
     'DOWNLOAD_TIMEOUT': 15,
-    'CLOSESPIDER_PAGECOUNT': 500, # 🚀 INCREASED LIMIT: Changed from 100 to 500 pages.
+    'CLOSESPIDER_PAGECOUNT': 500, # Increased Limit
     'TELNET_ENABLED': False,
 }
 
 def seo_audit(url):
     start_time = time.time()
     
-    # 1. Run Domain-Level Checks (SSL, Robots)
+    # 1. Run Domain-Level Checks (SSL, Robots, and Performance)
     domain_checks = {
         "url": url,
         "ssl": ssl_check.run(url),
         "robots_sitemap": robots_sitemap.run(url),
+        "performance": performance_check.run(url), # ⬅️ Performance Check Run Here (once)
         "timestamp": time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())
     }
     
@@ -90,4 +91,3 @@ if __name__ == "__main__":
         print(f"🛑 CRITICAL AUDIT FAILURE: {audit_results['error']}")
     else:
         print(f"Audit complete in {audit_results.get('audit_duration_s', 'N/A')} seconds. Total Pages: {audit_results.get('summary_metrics', {}).get('total_pages_crawled', 'N/A')}. Reports generated in /reports")
-        
