@@ -1,6 +1,7 @@
 import json
 import pandas as pd
 import numpy as np
+import datetime
 
 # --- Score Calculation (Run AFTER the crawl finishes) ---
 
@@ -64,7 +65,7 @@ def calculate_seo_score_full(all_page_results, domain_checks):
         "indexable_pages": df[df['status_code'] == 200].shape[0],
         "broken_pages_4xx": df[(df['status_code'] >= 400) & (df['status_code'] < 500)].shape[0],
         "server_errors_5xx": critical_errors_count,
-        "no_h1_pages": df[df['headings.h1'] == 0].shape[0],
+        "no_h1_pages": df[df['headings.h1'] == 0].sum() + df[df['headings.h1'] > 1].sum(), # Count pages with 0 or >1 H1
         "thin_content_pages": df[df['content.word_count'] < 250].shape[0],
         "missing_title_pages": df['meta.title'].apply(lambda x: not x).sum(),
         "total_broken_links_found": df['links.broken'].apply(lambda x: len(x) if isinstance(x, list) else 0).sum(),
@@ -84,6 +85,10 @@ def calculate_seo_score_full(all_page_results, domain_checks):
 def write_summary_report(data, json_path, md_path):
     """Writes the final comprehensive full-site JSON and Markdown report."""
     
+    # Add timestamp for the current run
+    if 'timestamp' not in data['domain_info']:
+         data['domain_info']['timestamp'] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
     # Save raw JSON
     with open(json_path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
@@ -115,7 +120,7 @@ def write_summary_report(data, json_path, md_path):
         f.write(f"- **SSL Security:** {ssl_status}\n")
         f.write(f"- **Robots.txt:** {domain.get('robots_sitemap', {}).get('robots.txt')}\n")
         f.write(f"- **Total Server Errors (5xx):** **{summary['server_errors_5xx']}**\n")
-        f.write(f"- **Total Broken Links/Pages (4xx):** **{summary['broken_pages_4xx']}**\n")
+        f.write(f"- **Total Broken Pages (4xx):** **{summary['broken_pages_4xx']}**\n")
         f.write(f"- **Total Broken Outgoing Links:** **{summary['total_broken_links_found']}**\n")
         
         f.write("\n---\n")
