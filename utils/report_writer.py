@@ -1,164 +1,150 @@
 import json
+import pandas as pd
+import numpy as np
 
-def generate_summary(data):
-    """Generates the Issues and Solutions for the Executive Summary."""
-    issues = []
-    solutions = []
+# --- Score Calculation (Run AFTER the crawl finishes) ---
 
-    # --- Technical Issues ---
-    if not data.get("ssl", {}).get("valid_ssl"):
-        issues.append("❌ **No Valid SSL/HTTPS:** The website is not secured, compromising trust and penalizing rankings.")
-        solutions.append("✅ **Solution:** Acquire and implement a valid SSL certificate (e.g., Let's Encrypt).")
+def calculate_seo_score_page(page_data):
+    """Calculates a simple SEO score for a single page (out of 100)."""
+    score = 100
+    penalties = 0
     
-    if data.get("links", {}).get("broken"):
-        broken_count = len(data["links"]["broken"])
-        issues.append(f"❌ **{broken_count} Broken Links:** {broken_count} internal or external links on this page return a 4xx/5xx status code, leading to poor user experience and wasted crawl budget.")
-        solutions.append("✅ **Solution:** Immediately fix or 301 redirect the broken links found. See Section 3.2 for details.")
-
-    if not data.get("canonical", {}).get("match") and data.get("canonical", {}).get("canonical_url"):
-        issues.append("⚠️ **Canonical Mismatch:** The canonical tag points to a different URL than the audited one, which may prevent indexation.")
-        solutions.append("✅ **Solution:** Ensure the canonical URL matches the preferred version of the page being audited.")
+    status = page_data.get("status_code", 0)
+    
+    # CRITICAL SERVER ERRORS
+    if status >= 500: penalties += 50
+    if status >= 400 and status != 404: penalties += 30 
+    if status == 0 or status == 404: penalties += 10 # 404 penalty is lower
+    
+    # Skip complex content penalties if page is not crawlable
+    if page_data.get("is_crawlable", False):
+        # On-Page & Content Checks
+        word_count = page_data.get("content", {}).get("word_count", 0)
+        if not page_data.get("meta", {}).get("title"): penalties += 10
+        if not page_data.get("meta", {}).get("description"): penalties += 10
+        if page_data.get("headings", {}).get("h1", 0) != 1: penalties += 5 
+        if word_count < 250: penalties += 10
         
-    if data.get("robots_sitemap", {}).get("robots.txt") != "found":
-        issues.append("⚠️ **Missing robots.txt:** The file is not found, leading to inefficient crawling control.")
-        solutions.append("✅ **Solution:** Create a basic `robots.txt` file and place it in the root directory.")
+        # Usability & Link Checks
+        if not page_data.get("mobile", {}).get("mobile_friendly"): penalties += 5
+        if page_data.get("links", {}).get("broken"): penalties += min(10, len(page_data["links"]["broken"]) * 1) 
+        if page_data.get("images", {}).get("missing_alt", 0) > 0: penalties += 5
 
-    # --- Performance & Usability Issues ---
-    if not data.get("mobile", {}).get("mobile_friendly"):
-        issues.append(f"❌ **Not Mobile Friendly:** Missing or incorrectly configured viewport meta tag, severely impacting mobile users.")
-        solutions.append("✅ **Solution:** Add `<meta name='viewport' content='width=device-width, initial-scale=1.0'>` to the page header.")
+    final_score = max(0, score - penalties)
+    return final_score
 
-    if data.get("images", {}).get("missing_alt", 0) > 0:
-        missing_count = data["images"]["missing_alt"]
-        issues.append(f"⚠️ **{missing_count} Images Missing Alt Text:** Impacts accessibility (WCAG) and search engine understanding of image content.")
-        solutions.append("✅ **Solution:** Add descriptive alt text to all missing images. See Section 4.2 for a list.")
-        
-    # --- Content Issues ---
-    if not data.get("meta", {}).get("title"):
-        issues.append("❌ **Missing Title Tag:** The page lacks a critical ranking factor and snippet display element.")
-        solutions.append("✅ **Solution:** Add a unique, compelling Title Tag (under 60 characters) to the page.")
+def calculate_seo_score_full(all_page_results, domain_checks):
+    """Aggregates all page data, calculates overall scores, and returns full report dictionary."""
+    
+    df = pd.json_normalize(all_page_results)
+    
+    # 1. Calculate Per-Page Scores and Aggregate
+    df['page_score'] = df.apply(calculate_seo_score_page, axis=1)
+    
+    # 2. Domain-Level Penalties (Higher weight)
+    domain_penalty = 0
+    if not domain_checks.get("ssl", {}).get("valid_ssl"): domain_penalty += 30
+    if domain_checks.get("robots_sitemap", {}).get("robots.txt") != "found": domain_penalty += 10
+    
+    # 3. Overall Site Score (Weighted Average)
+    # Give higher weight to critical errors
+    critical_errors_count = df[df['status_code'] >= 500].shape[0]
+    total_pages = df.shape[0]
+    
+    # Site Score = (Avg Page Score) - Domain Penalties - (Critical Error Ratio Penalty)
+    avg_page_score = df['page_score'].mean() if total_pages > 0 else 0
+    critical_penalty = (critical_errors_count / total_pages) * 50 if total_pages > 0 else 0
+    
+    final_site_score = max(0, avg_page_score - domain_penalty - critical_penalty)
 
-    if not data.get("headings", {}).get("h1", 0) > 0:
-        issues.append("⚠️ **Missing H1 Tag:** The page lacks the main heading, which helps define the primary topic.")
-        solutions.append("✅ **Solution:** Add a single, descriptive H1 tag containing the primary target keyword.")
-        
-    if data.get("content", {}).get("word_count", 0) < 300:
-        issues.append(f"⚠️ **Low Word Count ({data.get('content', {}).get('word_count', 0)}):** Content depth may be insufficient for high competition keywords.")
-        solutions.append("✅ **Solution:** Increase the content depth to over 500 words, ensuring it fully answers user intent.")
+    # 4. Generate Key Metrics (Summary Section)
+    summary_metrics = {
+        "overall_score": round(final_site_score, 2),
+        "total_pages_crawled": total_pages,
+        "indexable_pages": df[df['status_code'] == 200].shape[0],
+        "broken_pages_4xx": df[(df['status_code'] >= 400) & (df['status_code'] < 500)].shape[0],
+        "server_errors_5xx": critical_errors_count,
+        "no_h1_pages": df[df['headings.h1'] == 0].shape[0],
+        "thin_content_pages": df[df['content.word_count'] < 250].shape[0],
+        "missing_title_pages": df['meta.title'].apply(lambda x: not x).sum(),
+        "total_broken_links_found": df['links.broken'].apply(lambda x: len(x) if isinstance(x, list) else 0).sum(),
+    }
+    
+    # Combine everything for the final JSON/Markdown report
+    full_report_data = {
+        "domain_info": domain_checks,
+        "summary_metrics": summary_metrics,
+        "detailed_page_data": df.to_dict(orient='records')
+    }
+    
+    return full_report_data
 
+# --- Report Generation (Run AFTER calculation) ---
 
-    return "\n".join(issues), "\n".join(solutions)
-
-
-def write_report(data, json_path, md_path):
+def write_summary_report(data, json_path, md_path):
+    """Writes the final comprehensive full-site JSON and Markdown report."""
+    
     # Save raw JSON
     with open(json_path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
 
-    issues, solutions = generate_summary(data)
+    # Prepare Markdown Report
+    summary = data["summary_metrics"]
+    domain = data["domain_info"]
     
     with open(md_path, "w", encoding="utf-8") as f:
-        # --- Page 1: Executive Summary ---
-        f.write(f"# 📈 PROFESSIONAL SEO AUDIT REPORT\n")
-        f.write(f"## 🌐 Website: {data['url']}\n")
-        f.write(f"**Date:** {json.dumps(data.get('timestamp', 'N/A'))}\n") # Add timestamp dynamically if available
-        f.write(f"**Overall Status:** {'GOOD' if data.get('seo_score', 0) > 80 else 'NEEDS IMPROVEMENT'}\n")
-        f.write(f"**SEO Score:** **{data.get('seo_score', 'N/A')}/100**\n")
+        f.write(f"# 👑 PROFESSIONAL FULL-SITE SEO AUDIT REPORT\n")
+        f.write(f"## 🌐 Audited Domain: **{domain['url']}**\n")
+        f.write(f"**Date:** {domain.get('timestamp', 'N/A')}\n")
+        f.write(f"**Total Pages Crawled:** {summary['total_pages_crawled']}\n")
         f.write("\n---\n")
-        f.write("## 1. Executive Summary: Key Findings\n")
+
+        # --- 1. Executive Summary ---
+        f.write("## 1. Executive Summary & Site Score\n")
+        f.write(f"### 1.1 Overall Site Quality Score: **{summary['overall_score']}/100**\n")
         
-        f.write("### 1.1 Top Issues Identified\n")
-        if issues:
-            f.write(f"{issues}\n\n")
-        else:
-            f.write("🎉 No critical issues were found in the current audit scope.\n\n")
-
-        # --- Page 2: Priority Solutions ---
-        f.write("\n\n---\n") # Separator for "new page" visual
-        f.write("### 1.2 Priority Solutions & Action Plan\n")
-        if solutions:
-            f.write(f"{solutions}\n\n")
-        else:
-            f.write("✅ Continue to maintain current SEO standards and focus on content creation.\n\n")
+        status = 'EXCELLENT' if summary['overall_score'] > 90 else 'GOOD' if summary['overall_score'] > 70 else 'CRITICAL'
+        f.write(f"**Overall Health Status:** **{status}**\n")
         
-        f.write("\n---\n") # End of Summary Section
-
-        # --- Detailed Audit Sections ---
-        f.write("## 2. Detailed Technical SEO Audit\n")
-
-        # --- Technical Section Details ---
-        f.write("### 2.1 Indexing and Structure\n")
-        f.write(f"- **Status Code:** `{data.get('status_code', 'N/A')}`\n")
-        f.write(f"- **SSL Status:** {'✅ Valid HTTPS' if data.get('ssl', {}).get('valid_ssl') else '❌ No Valid SSL'}\n")
-        f.write(f"- **Robots.txt:** {data.get('robots_sitemap', {}).get('robots.txt')}\n")
-        f.write(f"- **Sitemap.xml:** {data.get('robots_sitemap', {}).get('sitemap.xml')}\n")
-        f.write(f"- **Canonical Tag:** `{data.get('canonical', {}).get('canonical_url', 'Missing')}` ({'✅ Match' if data.get('canonical', {}).get('match') else '⚠️ Mismatch'})\n")
-        f.write(f"- **URL Cleanliness:** {'✅ Clean' if data.get('url_structure', {}).get('is_clean') else '⚠️ Needs Improvement'}. Path: `{data.get('url_structure', {}).get('path')}`\n\n")
-
-        f.write("### 2.2 Link Check\n")
-        total_links = data.get('links', {}).get('total', 0)
-        broken_links = data.get('links', {}).get('broken', [])
-        f.write(f"- **Total Links Checked:** {total_links}\n")
-        f.write(f"- **Broken Links (4xx/5xx):** **{len(broken_links)}** ({round((len(broken_links)/total_links)*100, 2) if total_links else 0}%)\n")
-        if broken_links:
-            f.write(f"**Proof/Specific Examples:** The broken links were found on link index **14, 17, and 22** on this page (refer to the JSON report for full list):\n")
-            f.write(f"  - `{' / '.join(broken_links[:3])}`\n")
-        else:
-            f.write("- All links on this page appear valid.\n")
-
-        f.write(f"\n- **Internal Links Found:** {data.get('internal_links', {}).get('internal_link_count', 0)}\n")
-        f.write(f"- **External Domains Count:** {len(data.get('backlinks', {}).get('sample_external_domains', []))}\n")
-        f.write(f"  - *Note: External check is basic, based on page content only.*\n\n")
+        f.write("\n---\n")
         
-        # --- On-Page Section Details ---
-        f.write("## 3. On-Page SEO & Content Audit\n")
+        # --- 2. Technical Health Metrics ---
+        f.write("## 2. Technical Health Metrics\n")
+        
+        ssl_status = '✅ Valid HTTPS' if domain.get('ssl', {}).get('valid_ssl') else '❌ CRITICAL: No Valid SSL'
+        f.write(f"- **SSL Security:** {ssl_status}\n")
+        f.write(f"- **Robots.txt:** {domain.get('robots_sitemap', {}).get('robots.txt')}\n")
+        f.write(f"- **Total Server Errors (5xx):** **{summary['server_errors_5xx']}**\n")
+        f.write(f"- **Total Broken Links/Pages (4xx):** **{summary['broken_pages_4xx']}**\n")
+        f.write(f"- **Total Broken Outgoing Links:** **{summary['total_broken_links_found']}**\n")
+        
+        f.write("\n---\n")
+        
+        # --- 3. Content & On-Page Issues ---
+        f.write("## 3. Top On-Page Issues\n")
+        f.write(f"This is a count of pages with the following issues:\n\n")
 
-        f.write("### 3.1 Meta Data and Headings\n")
-        title = data.get('meta', {}).get('title', '')
-        f.write(f"- **Title Tag:** `{title}` ({len(title)} chars)\n")
-        f.write(f"  - **Status:** {'✅ Good Length' if 30 < len(title) < 60 else '⚠️ Needs Edit'}\n")
-        f.write(f"- **Meta Description:** `{data.get('meta', {}).get('description', 'Missing')}`\n")
-        f.write(f"- **Heading Counts:** H1: {data.get('headings', {}).get('h1', 0)}, H2: {data.get('headings', {}).get('h2', 0)}, H3: {data.get('headings', {}).get('h3', 0)}\n\n")
-
-        f.write("### 3.2 Content Quality and Schema\n")
-        word_count = data.get('content', {}).get('word_count', 0)
-        f.write(f"- **Word Count:** **{word_count}**\n")
-        f.write(f"- **Readability Score (Flesch):** {data.get('content', {}).get('readability_score', 'N/A')}\n")
-        f.write(f"- **Top Keywords:** {data.get('keywords', {}).get('top_keywords', 'N/A')}\n")
-        f.write(f"- **Schema Found:** **{data.get('schema', {}).get('found_count', 0)}** types found.\n")
-        if data.get('schema', {}).get('schema_tags'):
-            f.write(f"  - Types: {', '.join(data['schema']['schema_tags'][:5])}\n\n")
-
-        f.write("### 3.3 Image Optimization\n")
-        total_imgs = data.get('images', {}).get('total', 0)
-        missing_alt = data.get('images', {}).get('missing_alt', 0)
-        f.write(f"- **Total Images:** {total_imgs}\n")
-        f.write(f"- **Images Missing Alt Text:** **{missing_alt}** ({round((missing_alt/total_imgs)*100, 2) if total_imgs else 0}%)\n")
-        if missing_alt > 0:
-            f.write(f"**Proof/Specific Examples:** The following image sources are missing alt text (a violation of WCAG):\n")
-            f.write(f"  - `{' / '.join(data['images']['missing_list'][:3])}`\n\n")
+        f.write(f"- **Pages with Missing Title Tags:** **{summary['missing_title_pages']}**\n")
+        f.write(f"- **Pages with Missing/Multiple H1:** **{summary['no_h1_pages']}**\n")
+        f.write(f"- **Pages with Thin Content (<250 words):** **{summary['thin_content_pages']}**\n")
+        f.write(f"- **Non-Indexable Pages (Redirects/Errors):** **{summary['total_pages_crawled'] - summary['indexable_pages']}**\n")
+        
+        f.write("\n---\n")
+        
+        # --- 4. Call to Action ---
+        f.write("## 4. Professional Recommendations\n")
+        
+        if summary['server_errors_5xx'] > 0 or not domain.get('ssl', {}).get('valid_ssl'):
+            f.write("### 🔴 CRITICAL ACTION REQUIRED\n")
+            f.write("- **Server Errors (5xx):** Immediately check server logs. These pages are blocked from search engines.\n")
+            if not domain.get('ssl', {}).get('valid_ssl'):
+                f.write("- **No SSL:** Must be fixed. Google flags non-HTTPS sites as insecure.\n")
+        
+        if summary['broken_pages_4xx'] > 0 or summary['thin_content_pages'] > 0:
+            f.write("### ⚠️ HIGH PRIORITY FIXES\n")
+            f.write(f"- **Fix {summary['broken_pages_4xx']} Broken Pages:** Implement 301 redirects or restore content.\n")
+            f.write(f"- **Review {summary['thin_content_pages']} Thin Pages:** Expand content to be more authoritative.\n")
+            f.write("- **Download the `full_site_report.json` artifact for the full, page-by-page data grid.**\n")
             
-        # --- Usability Section Details ---
-        f.write("## 4. Usability and Performance\n")
-        f.write("### 4.1 Mobile and Accessibility\n")
-        f.write(f"- **Mobile Friendly:** {'✅ Pass' if data.get('mobile', {}).get('mobile_friendly') else '❌ Fail'}\n")
-        if data.get('mobile', {}).get('issues'):
-            f.write(f"  - **Mobile Issues:** {', '.join(data['mobile']['issues'])}\n")
-        
-        accessibility_issues = data.get('accessibility', {}).get('accessibility_issues', [])
-        f.write(f"- **Accessibility Issues:** **{len(accessibility_issues)}** warnings/infos.\n")
-        if accessibility_issues:
-             # Find the "Missing alt text" proof if present
-            alt_issue = next((item for item in accessibility_issues if item["check"] == "Missing alt text"), None)
-            if alt_issue:
-                 f.write(f"  - **Valid Proof:** Missing alt text found on images (also in Section 3.3).\n")
-            else:
-                 f.write(f"  - **Issues:** {', '.join([i['check'] for i in accessibility_issues])}\n")
+        f.write("\n*Disclaimer: This audit is based on open-source crawling and does not include external API data (Google Search Console, Backlink profiles).*")
 
-
-        f.write("### 4.2 Performance\n")
-        load_time = data.get('performance', {}).get('load_time_ms', 'N/A')
-        status = '✅ Good (Under 500ms)' if load_time != 'N/A' and load_time < 500 else '⚠️ Slow'
-        f.write(f"- **Initial Load Time:** **{load_time}ms** ({status})\n")
-        f.write("  - *Note: This is a basic measure (TTFB/Initial Load). Full CWV requires external tools.*\n")
-        
