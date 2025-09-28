@@ -7,21 +7,24 @@ from scrapy.settings import Settings
 from crawler.spider import SEOSpider
 from utils.report_writer import write_summary_report, calculate_seo_score_full
 from checks import (
-    ssl_check, robots_sitemap, performance_check # ⬅️ performance_check IMPORTED
+    ssl_check, robots_sitemap, performance_check 
 )
 
 # Load Scrapy settings from local file for granular control
 CUSTOM_SETTINGS = {
+    # CRITICAL CRAWL SETTINGS ADJUSTED FOR FREE GITHUB ACTIONS & ANTI-THROTTLING
     'USER_AGENT': 'ProfessionalSEOAgency (+https://github.com/your-repo)',
     'ROBOTSTXT_OBEY': False,
-    'CONCURRENT_REQUESTS': 8,
-    'DOWNLOAD_DELAY': 0.5, 
+    'CONCURRENT_REQUESTS': 2,      # ⬅️ CRITICAL: Reduced from 8 to 2 for server stability
+    'DOWNLOAD_DELAY': 3.0,         # ⬅️ CRITICAL: Increased from 0.5s to 3.0s to avoid blocking
     'LOG_LEVEL': 'INFO',
     'FEED_FORMAT': 'json',
     'FEED_URI': 'reports/crawl_results.json',
     'DOWNLOAD_TIMEOUT': 15,
-    'CLOSESPIDER_PAGECOUNT': 500, # Increased Limit
+    'CLOSESPIDER_PAGECOUNT': 500, # Max pages to crawl
     'TELNET_ENABLED': False,
+    'RETRY_ENABLED': True,         # Added: Better error handling
+    'RETRY_TIMES': 5,
 }
 
 def seo_audit(url):
@@ -32,7 +35,7 @@ def seo_audit(url):
         "url": url,
         "ssl": ssl_check.run(url),
         "robots_sitemap": robots_sitemap.run(url),
-        "performance": performance_check.run(url), # ⬅️ Performance Check Run Here (once)
+        "performance": performance_check.run(url), # Performance Check Run Here (once)
         "timestamp": time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())
     }
     
@@ -91,3 +94,4 @@ if __name__ == "__main__":
         print(f"🛑 CRITICAL AUDIT FAILURE: {audit_results['error']}")
     else:
         print(f"Audit complete in {audit_results.get('audit_duration_s', 'N/A')} seconds. Total Pages: {audit_results.get('summary_metrics', {}).get('total_pages_crawled', 'N/A')}. Reports generated in /reports")
+        
