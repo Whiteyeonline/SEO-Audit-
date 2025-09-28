@@ -25,28 +25,26 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
-
-    # FIX: Download necessary data for textblob/keyword_analysis
-    - name: Download TextBlob Corpora
-      run: |
+        # FIX: Download necessary data for textblob/keyword_analysis
         python -m textblob.download_corpora
 
-    - name: Run SEO Audit
+    - name: Run FULL Site SEO Audit
       env:
         AUDIT_URL: ${{ github.event.inputs.url }}
       run: |
+        # Scrapy generates crawl_results.json and main.py generates the reports
         mkdir -p reports
         python main.py
 
-    - name: Upload JSON Report
+    - name: Upload Full Site JSON Report
       uses: actions/upload-artifact@v4
       with:
-        name: seo-audit-json
-        path: reports/output.json
+        name: full-site-seo-report-json
+        path: reports/full_site_report.json
 
-    - name: Upload Markdown Report
+    - name: Upload Full Site Markdown Report
       uses: actions/upload-artifact@v4
       with:
-        name: seo-audit-markdown
-        path: reports/output.md
+        name: full-site-seo-report-markdown
+        path: reports/full_site_report.md
         
