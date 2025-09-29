@@ -1,50 +1,69 @@
-name: SEO Audit
+name: Professional SEO Audit
 
 on:
+  # Allows manual triggering of the workflow from the GitHub Actions tab
   workflow_dispatch:
     inputs:
-      url:
-        description: 'Website URL to audit'
+      audit_url:
+        description: 'The full URL to audit (e.g., https://example.com)'
         required: true
         default: 'https://example.com'
+      audit_level:
+        description: 'Audit intensity (basic or standard)'
+        type: choice
+        options:
+          - basic
+          - standard
+        default: 'standard'
+        required: true
+      audit_scope:
+        description: 'Scope of the crawl'
+        type: choice
+        options:
+          - only_onpage
+          - onpage_and_index_pages
+          - full_site_250_pages
+        default: 'onpage_and_index_pages'
+        required: true
+      competitor_url:
+        description: 'Optional: Competitor URL for comparison (e.g., https://competitor.com)'
+        required: false
+        default: ''
 
 jobs:
-  seo-audit:
+  seo_audit_job:
     runs-on: ubuntu-latest
-
+    
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.11'
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
 
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
-        # FIX: Download necessary data for textblob/keyword_analysis
-        python -m textblob.download_corpora
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          # Download necessary corpus data for textblob/textstat
+          python -m textblob.download_corpora
 
-    - name: Run FULL Site SEO Audit
-      env:
-        AUDIT_URL: ${{ github.event.inputs.url }}
-      run: |
-        # Scrapy generates crawl_results.json and main.py generates the reports
-        mkdir -p reports
-        python main.py
+      - name: Run SEO Audit Script
+        id: run_script
+        run: python main.py
+        env:
+          # Pass user inputs as environment variables to the Python script
+          AUDIT_URL: ${{ github.event.inputs.audit_url }}
+          AUDIT_LEVEL: ${{ github.event.inputs.audit_level }}
+          AUDIT_SCOPE: ${{ github.event.inputs.audit_scope }}
+          COMPETITOR_URL: ${{ github.event.inputs.competitor_url }}
 
-    - name: Upload Full Site JSON Report
-      uses: actions/upload-artifact@v4
-      with:
-        name: full-site-seo-report-json
-        path: reports/full_site_report.json
-
-    - name: Upload Full Site Markdown Report
-      uses: actions/upload-artifact@v4
-      with:
-        name: full-site-seo-report-markdown
-        path: reports/full_site_report.md
-        
+      - name: Upload SEO Audit Reports
+        uses: actions/upload-artifact@v4
+        with:
+          # Report file name will reflect the audit level (e.g., seo-audit-reports-standard)
+          name: seo-audit-reports-${{ github.event.inputs.audit_level }}
+          path: reports/
+          retention-days: 5
+          
