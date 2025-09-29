@@ -7,7 +7,7 @@ validators
 textblob
 textstat
 
-# New Dependencies for Full-Site Crawling & Reporting
+# Dependencies for Full-Site Crawling & Reporting
 scrapy
 pandas
 numpy
