@@ -1,3 +1,4 @@
+# Core Libraries for SEO Checks and Domain Analysis
 requests
 beautifulsoup4
 lxml
@@ -5,6 +6,8 @@ tldextract
 validators
 textblob
 textstat
+
 # New Dependencies for Full-Site Crawling & Reporting
 scrapy
 pandas
+numpy
