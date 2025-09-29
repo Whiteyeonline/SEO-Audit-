@@ -7,7 +7,6 @@ from checks import (
     url_structure, internal_links, canonical_check,
     content_quality, accessibility_check, mobile_friendly_check,
     backlinks_check,
-    # << NEW CHECKS IMPORTED >>
     local_seo_check,
     analytics_check
 )
@@ -25,11 +24,9 @@ class SEOSpider(scrapy.Spider):
         self.domain_checks = domain_checks if domain_checks else {}
         self.crawl_domain = self.allowed_domains[0]
         self.audit_level = audit_level
-        self.max_depth = crawl_depth # Used to control link following logic
+        self.max_depth = crawl_depth
         
-        # Define which checks run for a 'basic' audit (less intensive)
-        # << UPDATED BASIC CHECKS LIST >>
-        # Includes new local_seo and analytics checks
+        # Define which checks run for a 'basic' audit
         self.basic_checks = [
             'url_structure', 'canonical', 'meta', 'headings', 'content', 'images', 'mobile',
             'local_seo', 'analytics', 'accessibility'
@@ -39,7 +36,6 @@ class SEOSpider(scrapy.Spider):
     def run_single_page_checks(url, html_content):
         """Utility method to run all checks on a single page, used for Competitor analysis and full audit."""
         
-        # Run all available checks
         results = {
             "url_structure": url_structure.run(url),
             "canonical": canonical_check.run(url, html_content),
@@ -49,6 +45,8 @@ class SEOSpider(scrapy.Spider):
             "images": image_check.run(url, html_content),
             "accessibility": accessibility_check.run(url, html_content),
             "mobile": mobile_friendly_check.run(url, html_content),
+            "local_seo": local_seo_check.run(url, html_content),
+            "analytics": analytics_check.run(url, html_content),
             
             # Heavy/Standard-only checks:
             "schema": schema_check.run(url, html_content),
@@ -56,10 +54,6 @@ class SEOSpider(scrapy.Spider):
             "links": link_check.run(url, html_content), 
             "internal_links": internal_links.run(url, html_content),
             "backlinks": backlinks_check.run(url, html_content),
-            
-            # << NEW CHECKS ADDED >>
-            "local_seo": local_seo_check.run(url, html_content),
-            "analytics": analytics_check.run(url, html_content),
         }
         return results
 
@@ -78,36 +72,29 @@ class SEOSpider(scrapy.Spider):
             "crawl_depth": depth
         }
         
-        # --- 1. Error Handling ---
+        # 1. Error Handling 
         if not page_results["is_crawlable"]:
             page_results["error_detail"] = f"Page returned HTTP error code {status}. Link structure analysis skipped."
             yield page_results
             return 
         
-        # --- 2. Run Page Checks based on Audit Level ---
+        # 2. Run Page Checks based on Audit Level
         page_checks = SEOSpider.run_single_page_checks(url, html_content)
         
         if self.audit_level == 'basic':
-            # Filter the checks to only include 'basic' list
-            filtered_results = {}
-            for key in self.basic_checks:
-                # Use .get() defensively in case a check is missing (though it shouldn't be)
-                filtered_results[key] = page_checks.get(key)
-                
+            filtered_results = {key: page_checks.get(key) for key in self.basic_checks}
             page_results.update(filtered_results)
-
-        else: # Standard Audit (Full checks)
+        else:
             page_results.update(page_checks)
             
-        # --- 3. Follow Internal Links (Respecting Scope) ---
+        # 3. Follow Internal Links (Respecting Scope)
         if self.max_depth is None or depth < self.max_depth:
             for href in response.css('a::attr(href)').getall():
                 absolute_url = urljoin(response.url, href)
                 
-                # Only follow internal links within the domain
                 if urlparse(absolute_url).netloc == self.crawl_domain:
                     yield response.follow(absolute_url, callback=self.parse)
         
-        # --- 4. Yield the completed page data ---
+        # 4. Yield the completed page data
         yield page_results
         
