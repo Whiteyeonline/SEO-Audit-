@@ -7,7 +7,7 @@ on:
       audit_url:
         description: 'The full URL to audit (e.g., https://example.com)'
         required: true
-        default: 'https://example.com'
+        default: 
       audit_level:
         description: 'Audit intensity (basic or standard)'
         type: choice
