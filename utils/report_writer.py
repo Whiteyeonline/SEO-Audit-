@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 import datetime
 
-# --- Utility Functions (Score Calculation remains robust) ---
+# --- Utility Functions (Score Calculation remains unchanged and correct) ---
 
 def calculate_seo_score_page(page_data):
     """Calculates a simple SEO score for a single page (out of 100)."""
@@ -93,11 +93,9 @@ def calculate_seo_score_full(all_page_results, domain_checks):
 def write_summary_report(data, json_path, md_path):
     """Writes the final comprehensive full-site JSON and PROFESSIONAL Markdown report."""
     
-    # Add timestamp for the current run
     if 'timestamp' not in data['domain_info']:
          data['domain_info']['timestamp'] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-    # Save raw JSON
     with open(json_path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
 
@@ -107,7 +105,7 @@ def write_summary_report(data, json_path, md_path):
     competitor = domain.get("competitor_data", {})
     audit_level = domain.get('audit_level', 'standard')
     
-    # Find home page data for Local SEO/Analytics checks
+    # Find home page data
     your_homepage_data = next((p for p in data['detailed_page_data'] if p.get('crawl_depth', -1) == 0), {})
     local_seo_data = your_homepage_data.get('local_seo', {}).get('nap_found', {})
     analytics_data = your_homepage_data.get('analytics', {}).get('tracking_setup', {})
@@ -117,8 +115,8 @@ def write_summary_report(data, json_path, md_path):
         # ----------------------------------------------------------------------
         # SECTION 1: EXECUTIVE SUMMARY & SCORE
         # ----------------------------------------------------------------------
-        f.write(f"# 👑 PROFESSIONAL {audit_level.upper()} SEO AUDIT REPORT\n")
-        f.write(f"## 🎯 Executive Summary for **{domain['url']}**\n")
+        f.write(f"# 👑 PROFESSIONAL {audit_level.upper()} SEO AUDIT REPORT\n\n")
+        f.write(f"## 🎯 Executive Summary for **{domain['url']}**\n\n")
         f.write(f"**Date:** {domain.get('timestamp', 'N/A')} | **Audit Level:** {audit_level.upper()} | **Pages Crawled:** {summary['total_pages_crawled']}\n\n")
 
         status_text, emoji = "", ""
@@ -128,25 +126,25 @@ def write_summary_report(data, json_path, md_path):
         else: status_text, emoji = "Poor (CRITICAL Intervention Required)", "🛑"
 
         f.write("--- \n")
-        f.write(f"| Metric | Result | Status |\n")
+        f.write("| Metric | Result | Status |\n")
         f.write("| :--- | :--- | :--- |\n")
         f.write(f"| **Overall Site Health Score** | **{summary['overall_score']}/100** | **{emoji} {status_text}** |\n")
         f.write("--- \n\n")
 
         # ----------------------------------------------------------------------
-        # SECTION 2: IMMEDIATE, ACTIONABLE RECOMMENDATIONS
+        # SECTION 2: IMMEDIATE, ACTIONABLE RECOMMENDATIONS (Prioritized)
         # ----------------------------------------------------------------------
-        f.write("## 💡 Top 3 Actionable Recommendations\n")
+        f.write("## 💡 Top 3 Actionable Recommendations\n\n")
         
         recs = []
         if not domain.get('ssl', {}).get('valid_ssl'):
-            recs.append("🔴 **CRITICAL: Install Valid SSL Certificate.** Your site is currently flagged as insecure.")
+            recs.append("🔴 **CRITICAL: Install Valid SSL Certificate.** Your site is currently flagged as insecure by browsers and search engines.")
         if summary['server_errors_5xx'] > 0:
-            recs.append(f"🔴 **CRITICAL: Fix {summary['server_errors_5xx']} Server Errors (5xx).** These pages are completely blocked from search and must be addressed.")
+            recs.append(f"🔴 **CRITICAL: Fix {summary['server_errors_5xx']} Server Errors (5xx).** These pages are completely blocked from search and must be addressed immediately.")
         if summary['broken_pages_4xx'] > 0:
-            recs.append(f"🟠 **HIGH: Resolve {summary['broken_pages_4xx']} Broken Pages (4xx).** Implement 301 redirects to recover link equity.")
+            recs.append(f"🟠 **HIGH: Resolve {summary['broken_pages_4xx']} Broken Pages (4xx).** Implement 301 redirects to recover link equity and improve user experience.")
         if summary['missing_title_pages'] > 0:
-            recs.append(f"🟡 **MEDIUM: Add Unique Title Tags** to the {summary['missing_title_pages']} pages currently missing them.")
+            recs.append(f"🟡 **MEDIUM: Add Unique Title Tags** to the {summary['missing_title_pages']} pages currently missing them, as this is a key ranking factor.")
         if not (analytics_data.get('google_analytics_found') or analytics_data.get('google_tag_manager_found')):
              recs.append("🟡 **MEDIUM: Verify Analytics Setup.** No Google Analytics/GTM script found on the homepage. Tracking is likely disabled or misconfigured.")
         
@@ -154,16 +152,16 @@ def write_summary_report(data, json_path, md_path):
         for i, rec in enumerate(recs[:3]):
             f.write(f"{i+1}. {rec}\n")
         if not recs:
-            f.write("1. Site health is generally good. Review the detailed metrics below for minor optimizations.\n")
+            f.write("1. Site health is generally **Good**. Review the detailed metrics below for minor optimizations and competitive positioning.\n")
 
         f.write("\n--- \n")
 
         # ----------------------------------------------------------------------
         # SECTION 3: TECHNICAL & DOMAIN HEALTH CHECKLIST
         # ----------------------------------------------------------------------
-        f.write("## ⚙️ Technical Health Checklist\n")
+        f.write("## ⚙️ Technical Health Checklist\n\n")
         
-        f.write("| Technical Metric | Result | Pages Affected |\n")
+        f.write("| Technical Metric | Status | Pages Affected |\n")
         f.write("| :--- | :--- | :--- |\n")
         
         # Domain Checks
@@ -184,7 +182,7 @@ def write_summary_report(data, json_path, md_path):
         # ----------------------------------------------------------------------
         # SECTION 4: ON-PAGE & CONTENT ISSUES
         # ----------------------------------------------------------------------
-        f.write("## 📝 On-Page & Content Issues\n")
+        f.write("## 📝 On-Page & Content Issues\n\n")
 
         f.write("| Issue Type | Pages Affected | Priority |\n")
         f.write("| :--- | :--- | :--- |\n")
@@ -193,7 +191,6 @@ def write_summary_report(data, json_path, md_path):
         f.write(f"| Thin Content (<250 words) | {summary['thin_content_pages']} | Medium |\n")
         f.write(f"| Missing Mobile Viewport Tag | {summary['total_pages_crawled'] - your_homepage_data.get('mobile', {}).get('mobile_friendly', True)} | High |\n")
         
-        # Only check schema if it was run
         if audit_level == 'standard':
             schema_count = sum(1 for p in data['detailed_page_data'] if p.get('schema', {}).get('schema_count', 0) > 0)
             f.write(f"| Pages with Schema Markup | {schema_count} | N/A (Opportunity) |\n")
@@ -204,27 +201,27 @@ def write_summary_report(data, json_path, md_path):
         # ----------------------------------------------------------------------
         # SECTION 5: HOMEPAGE DEEP DIVE (Local SEO & Analytics)
         # ----------------------------------------------------------------------
-        f.write("## 🏠 Homepage Deep Dive\n")
+        f.write("## 🏠 Homepage Deep Dive\n\n")
         
         # Local SEO
         f.write("### 5.1 Local SEO & NAP Check\n")
-        nap_status = '✅ Found' if (local_seo_data.get('phone_format_found') and local_seo_data.get('address_keywords_found')) else '❌ Missing Key NAP Elements'
-        gmb_status = '✅ Found Google Map/Embed' if local_seo_data.get('gmb_link_found') else '⚠️ GMB Proxy Link/Map Not Found'
+        nap_status = '✅ Found' if (local_seo_data.get('phone_format_found') and local_seo_data.get('address_keywords_found')) else '❌ Missing Key NAP Elements (High Priority for local businesses)'
+        gmb_status = '✅ Found Google Map/Embed' if local_seo_data.get('gmb_link_found') else '⚠️ GMB Proxy Link/Map Not Found (Verify local listing integration)'
         f.write(f"- **NAP Consistency Proxy:** {nap_status}\n")
-        f.write(f"- **GMB/Map Integration:** {gmb_status}\n")
+        f.write(f"- **GMB/Map Integration:** {gmb_status}\n\n")
         
         # Analytics
         f.write("### 5.2 Analytics & Tracking\n")
-        ga_status = '✅ Detected' if (analytics_data.get('google_analytics_found') or analytics_data.get('google_tag_manager_found')) else '❌ NOT Detected'
+        ga_status = '✅ Detected' if (analytics_data.get('google_analytics_found') or analytics_data.get('google_tag_manager_found')) else '❌ NOT Detected (Tracking is likely broken)'
         f.write(f"- **Google Tracking (GA/GTM):** {ga_status}\n")
-        f.write("    *NOTE: This is a static check. Event/Goal tracking cannot be verified.*\n")
+        f.write("    *NOTE: This is a static check. Event/Goal tracking cannot be verified; consult your analytics provider.*\n")
 
         f.write("\n--- \n")
 
         # ----------------------------------------------------------------------
         # SECTION 6: COMPETITOR ANALYSIS
         # ----------------------------------------------------------------------
-        f.write("## 📈 Competitor Analysis (vs. Homepage)\n")
+        f.write("## 📈 Competitor Analysis (vs. Homepage)\n\n")
         if competitor.get("status") == "success":
             
             your_title_len = len(your_homepage_data.get('meta', {}).get('title', ''))
@@ -254,8 +251,8 @@ def write_summary_report(data, json_path, md_path):
         if audit_level == 'basic':
             f.write("## ℹ️ Audit Scope Disclaimer\n")
             f.write("This **Basic Audit** intentionally skipped resource-intensive checks (Schema, Broken Link Validation, Keyword Analysis) to provide quick feedback.\n")
-            f.write("For a complete analysis, run the **Standard Audit**.\n")
-            f.write("\n---\n")
-
-        f.write("\n*Note: This audit is based on open-source crawling only. It does not include external API data (Google Search Console, Backlink profiles) or client-side event tracking.*\n")
+            f.write("For a complete analysis, run the **Standard Audit**.\n\n")
         
+        f.write("### Data Source Note\n")
+        f.write("*Note: This audit is based on open-source crawling only. It does not include external API data (Google Search Console, Backlink profiles, etc.) or client-side event tracking.*\n")
+    
