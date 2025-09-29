@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 import datetime
 
-# --- Score Calculation (Run AFTER the crawl finishes) ---
+# --- Utility Functions (Score Calculation remains robust) ---
 
 def calculate_seo_score_page(page_data):
     """Calculates a simple SEO score for a single page (out of 100)."""
@@ -15,7 +15,7 @@ def calculate_seo_score_page(page_data):
     # CRITICAL SERVER ERRORS
     if status >= 500: penalties += 50
     if status >= 400 and status != 404: penalties += 30 
-    if status == 0 or status == 404: penalties += 10 # 404 penalty is lower
+    if status == 0 or status == 404: penalties += 10
     
     # Skip complex content penalties if page is not crawlable
     if page_data.get("is_crawlable", False):
@@ -35,12 +35,12 @@ def calculate_seo_score_page(page_data):
         # Local SEO Penalty (only applies if site is local-focused - we assume yes for a basic audit)
         local_seo = page_data.get("local_seo", {}).get("nap_found", {})
         if not (local_seo.get("phone_format_found") and local_seo.get("address_keywords_found")):
-             penalties += 5 # Minor penalty if NAP is not easily found
+             penalties += 5
         
         # Analytics Penalty
         analytics = page_data.get("analytics", {}).get("tracking_setup", {})
         if not (analytics.get("google_analytics_found") or analytics.get("google_tag_manager_found")):
-             penalties += 5 # Minor penalty if no common tracking is found
+             penalties += 5
 
     final_score = max(0, score - penalties)
     return final_score
@@ -53,7 +53,7 @@ def calculate_seo_score_full(all_page_results, domain_checks):
     # 1. Calculate Per-Page Scores and Aggregate
     df['page_score'] = df.apply(calculate_seo_score_page, axis=1)
     
-    # 2. Domain-Level Penalties (Higher weight)
+    # 2. Domain-Level Penalties
     domain_penalty = 0
     if not domain_checks.get("ssl", {}).get("valid_ssl"): domain_penalty += 30
     if domain_checks.get("robots_sitemap", {}).get("robots.txt") != "found": domain_penalty += 10
@@ -80,7 +80,6 @@ def calculate_seo_score_full(all_page_results, domain_checks):
         "total_broken_links_found": df['links.broken'].apply(lambda x: len(x) if isinstance(x, list) else 0).sum(),
     }
     
-    # Combine everything for the final JSON/Markdown report
     full_report_data = {
         "domain_info": domain_checks,
         "summary_metrics": summary_metrics,
@@ -89,10 +88,10 @@ def calculate_seo_score_full(all_page_results, domain_checks):
     
     return full_report_data
 
-# --- Report Generation (Run AFTER calculation) ---
+# --- Professional Report Generation ---
 
 def write_summary_report(data, json_path, md_path):
-    """Writes the final comprehensive full-site JSON and Markdown report, adjusting content by audit_level."""
+    """Writes the final comprehensive full-site JSON and PROFESSIONAL Markdown report."""
     
     # Add timestamp for the current run
     if 'timestamp' not in data['domain_info']:
@@ -114,73 +113,119 @@ def write_summary_report(data, json_path, md_path):
     analytics_data = your_homepage_data.get('analytics', {}).get('tracking_setup', {})
     
     with open(md_path, "w", encoding="utf-8") as f:
-        # --- TITLE ADJUSTMENT ---
+        
+        # ----------------------------------------------------------------------
+        # SECTION 1: EXECUTIVE SUMMARY & SCORE
+        # ----------------------------------------------------------------------
         f.write(f"# 👑 PROFESSIONAL {audit_level.upper()} SEO AUDIT REPORT\n")
-        f.write(f"## 🌐 Audited Domain: **{domain['url']}**\n")
-        f.write(f"**Date:** {domain.get('timestamp', 'N/A')}\n")
-        f.write(f"**Audit Level:** {audit_level.upper()}\n")
-        f.write(f"**Total Pages Crawled:** {summary['total_pages_crawled']}\n")
-        
-        # --- AUDIT LEVEL EXPLANATION ---
-        if audit_level == 'basic':
-            f.write("\n### ⚠️ Basic Audit Note: Checks Skipped\n")
-            f.write("This is a lightweight audit. Advanced checks like **Broken Link Validation**, **Schema Markup**, and **In-Depth Keyword Analysis** were **skipped** for faster results. Run the **Standard Audit** for full detail.\n")
-        
-        f.write("\n---\n")
+        f.write(f"## 🎯 Executive Summary for **{domain['url']}**\n")
+        f.write(f"**Date:** {domain.get('timestamp', 'N/A')} | **Audit Level:** {audit_level.upper()} | **Pages Crawled:** {summary['total_pages_crawled']}\n\n")
 
-        # --- 1. Executive Summary & Site Score ---
-        f.write("## 1. Executive Summary & Site Score\n")
-        f.write(f"### 1.1 Overall Site Quality Score: **{summary['overall_score']}/100**\n")
+        status_text, emoji = "", ""
+        if summary['overall_score'] > 90: status_text, emoji = "Excellent (Maintain Strategy)", "✅"
+        elif summary['overall_score'] > 75: status_text, emoji = "Good (Minor Improvements Needed)", "🟢"
+        elif summary['overall_score'] > 50: status_text, emoji = "Fair (High-Priority Fixes Needed)", "🟡"
+        else: status_text, emoji = "Poor (CRITICAL Intervention Required)", "🛑"
+
+        f.write("--- \n")
+        f.write(f"| Metric | Result | Status |\n")
+        f.write("| :--- | :--- | :--- |\n")
+        f.write(f"| **Overall Site Health Score** | **{summary['overall_score']}/100** | **{emoji} {status_text}** |\n")
+        f.write("--- \n\n")
+
+        # ----------------------------------------------------------------------
+        # SECTION 2: IMMEDIATE, ACTIONABLE RECOMMENDATIONS
+        # ----------------------------------------------------------------------
+        f.write("## 💡 Top 3 Actionable Recommendations\n")
         
-        status = 'EXCELLENT' if summary['overall_score'] > 90 else 'GOOD' if summary['overall_score'] > 70 else 'CRITICAL'
-        f.write(f"**Overall Health Status:** **{status}**\n")
+        recs = []
+        if not domain.get('ssl', {}).get('valid_ssl'):
+            recs.append("🔴 **CRITICAL: Install Valid SSL Certificate.** Your site is currently flagged as insecure.")
+        if summary['server_errors_5xx'] > 0:
+            recs.append(f"🔴 **CRITICAL: Fix {summary['server_errors_5xx']} Server Errors (5xx).** These pages are completely blocked from search and must be addressed.")
+        if summary['broken_pages_4xx'] > 0:
+            recs.append(f"🟠 **HIGH: Resolve {summary['broken_pages_4xx']} Broken Pages (4xx).** Implement 301 redirects to recover link equity.")
+        if summary['missing_title_pages'] > 0:
+            recs.append(f"🟡 **MEDIUM: Add Unique Title Tags** to the {summary['missing_title_pages']} pages currently missing them.")
+        if not (analytics_data.get('google_analytics_found') or analytics_data.get('google_tag_manager_found')):
+             recs.append("🟡 **MEDIUM: Verify Analytics Setup.** No Google Analytics/GTM script found on the homepage. Tracking is likely disabled or misconfigured.")
         
-        f.write("\n---\n")
+        # Output Top 3
+        for i, rec in enumerate(recs[:3]):
+            f.write(f"{i+1}. {rec}\n")
+        if not recs:
+            f.write("1. Site health is generally good. Review the detailed metrics below for minor optimizations.\n")
+
+        f.write("\n--- \n")
+
+        # ----------------------------------------------------------------------
+        # SECTION 3: TECHNICAL & DOMAIN HEALTH CHECKLIST
+        # ----------------------------------------------------------------------
+        f.write("## ⚙️ Technical Health Checklist\n")
         
-        # --- 2. Technical Health Metrics ---
-        f.write("## 2. Technical Health Metrics\n")
+        f.write("| Technical Metric | Result | Pages Affected |\n")
+        f.write("| :--- | :--- | :--- |\n")
         
-        ssl_status = '✅ Valid HTTPS' if domain.get('ssl', {}).get('valid_ssl') else '❌ CRITICAL: No Valid SSL'
-        f.write(f"- **SSL Security:** {ssl_status}\n")
-        f.write(f"- **Robots.txt:** {domain.get('robots_sitemap', {}).get('robots.txt')}\n")
-        f.write(f"- **Total Server Errors (5xx):** **{summary['server_errors_5xx']}**\n")
-        f.write(f"- **Total Broken Pages (4xx):** **{summary['broken_pages_4xx']}**\n")
+        # Domain Checks
+        ssl_status = '✅ Valid' if domain.get('ssl', {}).get('valid_ssl') else '❌ FAILED'
+        robots_status = '✅ Found' if domain.get('robots_sitemap', {}).get('robots.txt') == "found" else '❌ Missing'
         
-        # BROKEN LINKS ONLY SHOWN FOR STANDARD AUDIT
+        f.write(f"| **HTTPS/SSL** | {ssl_status} | Domain-wide |\n")
+        f.write(f"| **Robots.txt** | {robots_status} | Domain-wide |\n")
+        f.write(f"| **Server Errors (5xx)** | {'✅ 0' if summary['server_errors_5xx'] == 0 else '🛑 ' + str(summary['server_errors_5xx'])} | {summary['server_errors_5xx']} Pages |\n")
+        f.write(f"| **Broken Pages (4xx)** | {'✅ 0' if summary['broken_pages_4xx'] == 0 else '❌ ' + str(summary['broken_pages_4xx'])} | {summary['broken_pages_4xx']} Pages |\n")
+        
         if audit_level == 'standard':
-             if 'total_broken_links_found' in summary:
-                 f.write(f"- **Total Broken Outgoing Links:** **{summary['total_broken_links_found']}**\n")
+             broken_links = summary['total_broken_links_found']
+             f.write(f"| **Broken Outgoing Links** | {'✅ 0' if broken_links == 0 else '⚠️ ' + str(broken_links)} | Crawl-wide total |\n")
+
+        f.write("\n--- \n")
+
+        # ----------------------------------------------------------------------
+        # SECTION 4: ON-PAGE & CONTENT ISSUES
+        # ----------------------------------------------------------------------
+        f.write("## 📝 On-Page & Content Issues\n")
+
+        f.write("| Issue Type | Pages Affected | Priority |\n")
+        f.write("| :--- | :--- | :--- |\n")
+        f.write(f"| Missing/Empty Title Tags | {summary['missing_title_pages']} | High |\n")
+        f.write(f"| Missing/Multiple H1s | {summary['no_h1_pages']} | Medium |\n")
+        f.write(f"| Thin Content (<250 words) | {summary['thin_content_pages']} | Medium |\n")
+        f.write(f"| Missing Mobile Viewport Tag | {summary['total_pages_crawled'] - your_homepage_data.get('mobile', {}).get('mobile_friendly', True)} | High |\n")
         
-        f.write("\n---\n")
+        # Only check schema if it was run
+        if audit_level == 'standard':
+            schema_count = sum(1 for p in data['detailed_page_data'] if p.get('schema', {}).get('schema_count', 0) > 0)
+            f.write(f"| Pages with Schema Markup | {schema_count} | N/A (Opportunity) |\n")
+
+
+        f.write("\n--- \n")
         
-        # --- 3. Local SEO Health (Main Page Check) ---
-        f.write("## 3. Local SEO Health (Main Page Check)\n")
+        # ----------------------------------------------------------------------
+        # SECTION 5: HOMEPAGE DEEP DIVE (Local SEO & Analytics)
+        # ----------------------------------------------------------------------
+        f.write("## 🏠 Homepage Deep Dive\n")
         
+        # Local SEO
+        f.write("### 5.1 Local SEO & NAP Check\n")
         nap_status = '✅ Found' if (local_seo_data.get('phone_format_found') and local_seo_data.get('address_keywords_found')) else '❌ Missing Key NAP Elements'
         gmb_status = '✅ Found Google Map/Embed' if local_seo_data.get('gmb_link_found') else '⚠️ GMB Proxy Link/Map Not Found'
-
-        f.write(f"- **NAP Consistency Proxy:** **{nap_status}**\n")
-        f.write(f"- **GMB/Map Integration:** **{gmb_status}**\n")
-        f.write("\n---\n")
-
-        # --- 4. Analytics & Tracking Check (Main Page) ---
-        f.write("## 4. Analytics & Tracking Check (Main Page)\n")
+        f.write(f"- **NAP Consistency Proxy:** {nap_status}\n")
+        f.write(f"- **GMB/Map Integration:** {gmb_status}\n")
         
-        ga_status = '✅ GA/GTM Script Detected' if (analytics_data.get('google_analytics_found') or analytics_data.get('google_tag_manager_found')) else '❌ No GA/GTM Script Detected'
-        other_status = '✅ Other Scripts Detected' if analytics_data.get('other_analytics_found') else '— None Detected'
+        # Analytics
+        f.write("### 5.2 Analytics & Tracking\n")
+        ga_status = '✅ Detected' if (analytics_data.get('google_analytics_found') or analytics_data.get('google_tag_manager_found')) else '❌ NOT Detected'
+        f.write(f"- **Google Tracking (GA/GTM):** {ga_status}\n")
+        f.write("    *NOTE: This is a static check. Event/Goal tracking cannot be verified.*\n")
 
-        f.write(f"- **Google Tracking:** **{ga_status}**\n")
-        f.write(f"- **Other Tracking Scripts:** **{other_status}**\n")
-        f.write("    *NOTE: This is a static code check only. Event/Goal tracking cannot be verified.*\n")
-        f.write("\n---\n")
-        
-        # --- 5. Competitor Analysis ---
-        f.write("## 5. Competitor Analysis (Main Page)\n")
+        f.write("\n--- \n")
+
+        # ----------------------------------------------------------------------
+        # SECTION 6: COMPETITOR ANALYSIS
+        # ----------------------------------------------------------------------
+        f.write("## 📈 Competitor Analysis (vs. Homepage)\n")
         if competitor.get("status") == "success":
-            f.write(f"**Competitor URL:** {competitor.get('url')}\n\n")
-            
-            f.write("| Metric | Your Site (Home) | Competitor |\n")
-            f.write("| :--- | :--- | :--- |\n")
             
             your_title_len = len(your_homepage_data.get('meta', {}).get('title', ''))
             your_h1 = your_homepage_data.get('headings', {}).get('h1', 0)
@@ -190,39 +235,27 @@ def write_summary_report(data, json_path, md_path):
             comp_h1 = competitor.get('h1_count', 'N/A')
             comp_words = competitor.get('word_count', 'N/A')
             
+            f.write(f"**Competitor URL:** [{competitor.get('url')}]({competitor.get('url')})\n\n")
+
+            f.write("| Metric | Your Site | Competitor |\n")
+            f.write("| :--- | :--- | :--- |\n")
             f.write(f"| Title Length (Chars) | {your_title_len} | {comp_title_len} |\n")
             f.write(f"| H1 Count | {your_h1} | {comp_h1} |\n")
             f.write(f"| Word Count | {your_words} | {comp_words} |\n")
             f.write(f"| SSL Valid | {'✅' if domain.get('ssl', {}).get('valid_ssl') else '❌'} | {'✅' if competitor.get('ssl_valid') else '❌'} |\n")
         else:
-             f.write(f"Competitor analysis skipped or failed: {competitor.get('error', 'N/A')}\n")
+             f.write(f"Competitor analysis skipped or failed: {competitor.get('error', 'No competitor URL provided.')}\n")
 
-        f.write("\n---\n")
+        f.write("\n--- \n")
         
-        # --- 6. Content & On-Page Issues ---
-        f.write("## 6. Top On-Page Issues\n")
-        f.write(f"This is a count of pages with the following issues:\n\n")
+        # ----------------------------------------------------------------------
+        # SECTION 7: DISCLAIMER
+        # ----------------------------------------------------------------------
+        if audit_level == 'basic':
+            f.write("## ℹ️ Audit Scope Disclaimer\n")
+            f.write("This **Basic Audit** intentionally skipped resource-intensive checks (Schema, Broken Link Validation, Keyword Analysis) to provide quick feedback.\n")
+            f.write("For a complete analysis, run the **Standard Audit**.\n")
+            f.write("\n---\n")
 
-        f.write(f"- **Pages with Missing Title Tags:** **{summary['missing_title_pages']}**\n")
-        f.write(f"- **Pages with Missing/Multiple H1:** **{summary['no_h1_pages']}**\n")
-        f.write(f"- **Pages with Thin Content (<250 words):** **{summary['thin_content_pages']}**\n")
-        f.write(f"- **Non-Indexable Pages (Redirects/Errors):** **{summary['total_pages_crawled'] - summary['indexable_pages']}**\n")
+        f.write("\n*Note: This audit is based on open-source crawling only. It does not include external API data (Google Search Console, Backlink profiles) or client-side event tracking.*\n")
         
-        f.write("\n---\n")
-        
-        # --- 7. Call to Action (Recommendations) ---
-        f.write("## 7. Professional Recommendations\n")
-        
-        if summary['server_errors_5xx'] > 0 or not domain.get('ssl', {}).get('valid_ssl'):
-            f.write("### 🔴 CRITICAL ACTION REQUIRED\n")
-            f.write("- **Server Errors (5xx):** Immediately check server logs. These pages are blocked from search engines.\n")
-            if not domain.get('ssl', {}).get('valid_ssl'):
-                f.write("- **No SSL:** Must be fixed. Google flags non-HTTPS sites as insecure.\n")
-        
-        if summary['broken_pages_4xx'] > 0 or summary['thin_content_pages'] > 0:
-            f.write("### ⚠️ HIGH PRIORITY FIXES\n")
-            f.write(f"- **Fix {summary['broken_pages_4xx']} Broken Pages:** Implement 301 redirects or restore content.\n")
-            f.write(f"- **Review {summary['thin_content_pages']} Thin Pages:** Expand content to be more authoritative.\n")
-            f.write("- **Download the `full_site_report.json` artifact for the full, page-by-page data grid.**\n")
-            
-        f.write("\n*Disclaimer: This audit is based on open-source crawling and does not include external API data (Google Search Console, Backlink profiles, full plagiarism checks, or client-side event tracking).*")
