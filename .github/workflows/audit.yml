@@ -46,11 +46,10 @@ jobs:
       - name: Install dependencies
         run: |
           pip install -r requirements.txt
-          # Download necessary corpus data for textblob/textstat
           python -m textblob.download_corpora
 
       - name: Prepare Report Directory
-        # CRITICAL FIX: Ensure the reports directory exists before main.py runs
+        # Ensure the reports directory exists before main.py runs
         run: mkdir -p reports
         
       - name: Run SEO Audit Script
@@ -66,9 +65,8 @@ jobs:
       - name: Upload SEO Audit Reports
         uses: actions/upload-artifact@v4
         with:
-          # Report file name will reflect the audit level (e.g., seo-audit-reports-standard)
           name: seo-audit-reports-${{ github.event.inputs.audit_level }}
-          # CRITICAL FIX: Ensure path is correctly set to the directory containing the report files
+          # Path to the directory containing the report files
           path: reports/
           retention-days: 5
           
