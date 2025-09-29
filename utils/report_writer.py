@@ -3,41 +3,34 @@ import pandas as pd
 import numpy as np
 import datetime
 
-# --- Utility Functions (Score Calculation remains unchanged and correct) ---
+# --- Utility Functions (Score Calculation - Same as previous, correct version) ---
 
 def calculate_seo_score_page(page_data):
     """Calculates a simple SEO score for a single page (out of 100)."""
     score = 100
     penalties = 0
-    
     status = page_data.get("status_code", 0)
     
-    # CRITICAL SERVER ERRORS
     if status >= 500: penalties += 50
     if status >= 400 and status != 404: penalties += 30 
     if status == 0 or status == 404: penalties += 10
     
-    # Skip complex content penalties if page is not crawlable
     if page_data.get("is_crawlable", False):
-        # On-Page & Content Checks
         word_count = page_data.get("content", {}).get("word_count", 0)
         if page_data.get("meta", {}).get("title") in ["", None]: penalties += 10
         if page_data.get("meta", {}).get("description") in ["", None]: penalties += 10
         if page_data.get("headings", {}).get("h1", 0) != 1: penalties += 5 
         if word_count < 250: penalties += 10
         
-        # Usability & Link Checks (Standard audit only checks will have data)
         if page_data.get("mobile", {}).get("mobile_friendly", False) == False: penalties += 5
         if page_data.get("links", {}).get("broken"): 
              penalties += min(10, len(page_data["links"]["broken"]) * 1) 
         if page_data.get("images", {}).get("missing_alt", 0) > 0: penalties += 5
              
-        # Local SEO Penalty (only applies if site is local-focused - we assume yes for a basic audit)
         local_seo = page_data.get("local_seo", {}).get("nap_found", {})
         if not (local_seo.get("phone_format_found") and local_seo.get("address_keywords_found")):
              penalties += 5
         
-        # Analytics Penalty
         analytics = page_data.get("analytics", {}).get("tracking_setup", {})
         if not (analytics.get("google_analytics_found") or analytics.get("google_tag_manager_found")):
              penalties += 5
@@ -46,19 +39,14 @@ def calculate_seo_score_page(page_data):
     return final_score
 
 def calculate_seo_score_full(all_page_results, domain_checks):
-    """Aggregates all page data, calculates overall scores, and returns full report dictionary."""
-    
+    # ... (score aggregation logic is correct and omitted for brevity)
     df = pd.json_normalize(all_page_results)
-    
-    # 1. Calculate Per-Page Scores and Aggregate
     df['page_score'] = df.apply(calculate_seo_score_page, axis=1)
     
-    # 2. Domain-Level Penalties
     domain_penalty = 0
     if not domain_checks.get("ssl", {}).get("valid_ssl"): domain_penalty += 30
     if domain_checks.get("robots_sitemap", {}).get("robots.txt") != "found": domain_penalty += 10
     
-    # 3. Overall Site Score (Weighted Average)
     critical_errors_count = df[df['status_code'] >= 500].shape[0]
     total_pages = df.shape[0]
     
@@ -67,7 +55,6 @@ def calculate_seo_score_full(all_page_results, domain_checks):
     
     final_site_score = max(0, avg_page_score - domain_penalty - critical_penalty)
 
-    # 4. Generate Key Metrics (Summary Section)
     summary_metrics = {
         "overall_score": round(final_site_score, 2),
         "total_pages_crawled": total_pages,
@@ -88,7 +75,8 @@ def calculate_seo_score_full(all_page_results, domain_checks):
     
     return full_report_data
 
-# --- Professional Report Generation ---
+
+# --- Professional Report Generation (with line break fixes) ---
 
 def write_summary_report(data, json_path, md_path):
     """Writes the final comprehensive full-site JSON and PROFESSIONAL Markdown report."""
@@ -99,13 +87,11 @@ def write_summary_report(data, json_path, md_path):
     with open(json_path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
 
-    # Prepare Markdown Report
     summary = data["summary_metrics"]
     domain = data["domain_info"]
     competitor = domain.get("competitor_data", {})
     audit_level = domain.get('audit_level', 'standard')
     
-    # Find home page data
     your_homepage_data = next((p for p in data['detailed_page_data'] if p.get('crawl_depth', -1) == 0), {})
     local_seo_data = your_homepage_data.get('local_seo', {}).get('nap_found', {})
     analytics_data = your_homepage_data.get('analytics', {}).get('tracking_setup', {})
@@ -148,7 +134,6 @@ def write_summary_report(data, json_path, md_path):
         if not (analytics_data.get('google_analytics_found') or analytics_data.get('google_tag_manager_found')):
              recs.append("🟡 **MEDIUM: Verify Analytics Setup.** No Google Analytics/GTM script found on the homepage. Tracking is likely disabled or misconfigured.")
         
-        # Output Top 3
         for i, rec in enumerate(recs[:3]):
             f.write(f"{i+1}. {rec}\n")
         if not recs:
@@ -164,7 +149,6 @@ def write_summary_report(data, json_path, md_path):
         f.write("| Technical Metric | Status | Pages Affected |\n")
         f.write("| :--- | :--- | :--- |\n")
         
-        # Domain Checks
         ssl_status = '✅ Valid' if domain.get('ssl', {}).get('valid_ssl') else '❌ FAILED'
         robots_status = '✅ Found' if domain.get('robots_sitemap', {}).get('robots.txt') == "found" else '❌ Missing'
         
@@ -203,14 +187,12 @@ def write_summary_report(data, json_path, md_path):
         # ----------------------------------------------------------------------
         f.write("## 🏠 Homepage Deep Dive\n\n")
         
-        # Local SEO
         f.write("### 5.1 Local SEO & NAP Check\n")
         nap_status = '✅ Found' if (local_seo_data.get('phone_format_found') and local_seo_data.get('address_keywords_found')) else '❌ Missing Key NAP Elements (High Priority for local businesses)'
         gmb_status = '✅ Found Google Map/Embed' if local_seo_data.get('gmb_link_found') else '⚠️ GMB Proxy Link/Map Not Found (Verify local listing integration)'
         f.write(f"- **NAP Consistency Proxy:** {nap_status}\n")
         f.write(f"- **GMB/Map Integration:** {gmb_status}\n\n")
         
-        # Analytics
         f.write("### 5.2 Analytics & Tracking\n")
         ga_status = '✅ Detected' if (analytics_data.get('google_analytics_found') or analytics_data.get('google_tag_manager_found')) else '❌ NOT Detected (Tracking is likely broken)'
         f.write(f"- **Google Tracking (GA/GTM):** {ga_status}\n")
@@ -230,7 +212,7 @@ def write_summary_report(data, json_path, md_path):
             
             comp_title_len = competitor.get('title_length', 'N/A')
             comp_h1 = competitor.get('h1_count', 'N/A')
-            comp_words = competitor.get('word_count', 'N/A')
+            comp_words = competitor.get('content', {}).get('word_count', 'N/A')
             
             f.write(f"**Competitor URL:** [{competitor.get('url')}]({competitor.get('url')})\n\n")
 
@@ -255,4 +237,4 @@ def write_summary_report(data, json_path, md_path):
         
         f.write("### Data Source Note\n")
         f.write("*Note: This audit is based on open-source crawling only. It does not include external API data (Google Search Console, Backlink profiles, etc.) or client-side event tracking.*\n")
-    
+        
