@@ -24,8 +24,11 @@ def calculate_seo_score_page(page_data):
         if word_count < 250: penalties += 10
         
         if page_data.get("mobile", {}).get("mobile_friendly", False) == False: penalties += 5
+        
+        # Check for broken links only if the key exists (i.e., if it was a Standard Audit)
         if page_data.get("links", {}).get("broken"): 
              penalties += min(10, len(page_data["links"]["broken"]) * 1) 
+        
         if page_data.get("images", {}).get("missing_alt", 0) > 0: penalties += 5
              
         local_seo = page_data.get("local_seo", {}).get("nap_found", {})
@@ -74,6 +77,11 @@ def calculate_seo_score_full(all_page_results, domain_checks):
     
     final_site_score = max(0, avg_page_score - domain_penalty - critical_penalty)
 
+    # FIX: Safely calculate total broken links, which may not exist for Basic audits
+    broken_links_count = 0
+    if 'links.broken' in df.columns:
+        broken_links_count = df['links.broken'].apply(lambda x: len(x) if isinstance(x, list) else 0).sum()
+
     summary_metrics = {
         "overall_score": round(final_site_score, 2),
         "total_pages_crawled": total_pages,
@@ -83,7 +91,7 @@ def calculate_seo_score_full(all_page_results, domain_checks):
         "no_h1_pages": df[df['headings.h1'] == 0].shape[0] + df[df['headings.h1'] > 1].shape[0],
         "thin_content_pages": df[df['content.word_count'] < 250].shape[0],
         "missing_title_pages": df['meta.title'].apply(lambda x: not x or x == 'N/A').sum(),
-        "total_broken_links_found": df['links.broken'].apply(lambda x: len(x) if isinstance(x, list) else 0).sum(),
+        "total_broken_links_found": broken_links_count,
     }
     
     full_report_data = {
@@ -265,7 +273,8 @@ def _write_advanced_standard_section(f, data):
         issues = True
         
     if len(links_data.get('broken', [])) > 0:
-        f.write(f"* ❌ **ISSUE:** **{len(links_data.get('broken'))}** broken external links were identified. (Sample: {', '.join(links_data['broken'][:3])}...)\n")
+        # FIX: Replaced direct bracket access with .get() to prevent KeyError
+        f.write(f"* ❌ **ISSUE:** **{len(links_data.get('broken', []))}** broken external links were identified. (Sample: {', '.join(links_data.get('broken', [])[:3])}...)\n")
         f.write("  * **SOLUTION:** Replace or remove broken links. Too many 404 links damage trust and user experience.\n")
         issues = True
         
@@ -387,4 +396,4 @@ def write_summary_report(data, json_path, md_path):
             f.write("For a complete analysis, run the **Standard Audit**.\n\n")
         
         f.write("### Data Source Note\n")
-        f.write("*Note: This audit is based on open-source static crawling only. It does not include external API data (Google Search Console, Backlink profiles) or verify JavaScript-rendered content.*\n")
+        
