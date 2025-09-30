@@ -97,4 +97,3 @@ class SEOSpider(scrapy.Spider):
         
         # 4. Yield the completed page data
         yield page_results
-        
