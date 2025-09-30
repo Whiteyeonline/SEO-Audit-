@@ -14,7 +14,6 @@ from checks import (
 
 # Load Scrapy settings from local file for granular control
 CUSTOM_SETTINGS = {
-    # CRITICAL CRAWL SETTINGS ADJUSTED FOR STABILITY
     'USER_AGENT': 'ProfessionalSEOAgency (+https://github.com/your-repo)',
     'ROBOTSTXT_OBEY': False,
     'CONCURRENT_REQUESTS': 2,
@@ -27,7 +26,6 @@ CUSTOM_SETTINGS = {
     'TELNET_ENABLED': False,
     'RETRY_ENABLED': True,         
     'RETRY_TIMES': 5,
-    # 🚨 CRITICAL FIX: Ensure redirects are followed to avoid empty crawls
     'REDIRECT_ENABLED': True,
     'REDIRECT_MAX_TIMES': 5,
 }
@@ -42,10 +40,8 @@ def competitor_analysis(url):
         r = requests.get(url, timeout=10)
         r.raise_for_status()
         
-        # NOTE: We use SEOSpider's static method to run checks without a full crawl
         temp_results = SEOSpider.run_single_page_checks(url, r.text)
         
-        # Extract key metrics for comparison
         return {
             "status": "success",
             "url": url,
@@ -63,7 +59,6 @@ def seo_audit(url, level, scope, competitor_url):
     
     print(f"Audit Scope: {scope}. Pages limit: {CUSTOM_SETTINGS.get('CLOSESPIDER_PAGECOUNT')}")
     
-    # 1. Prepare Crawling Parameters based on Scope
     settings = Settings()
     settings.setmodule(__import__('scrapy.settings'))
     settings.update(CUSTOM_SETTINGS)
@@ -78,7 +73,6 @@ def seo_audit(url, level, scope, competitor_url):
         settings.update({'CLOSESPIDER_PAGECOUNT': 10, 'MAX_DEPTH': 1})
         crawl_depth = 1
 
-    # 2. Run Domain-Level Checks and Competitor Check
     domain_checks = {
         "url": url,
         "ssl": ssl_check.run(url),
@@ -89,7 +83,6 @@ def seo_audit(url, level, scope, competitor_url):
         "competitor_data": competitor_analysis(competitor_url)
     }
     
-    # 3. Configure and Run the Crawler (Scrapy)
     try:
         process = CrawlerProcess(settings)
         process.crawl(SEOSpider, 
@@ -102,23 +95,20 @@ def seo_audit(url, level, scope, competitor_url):
     except Exception as e:
          return {"error": f"Scrapy Crawl Failed: {str(e)}", "url": url, "status": "Failed"}
     
-    # 4. Aggregate and Generate Final Report
     crawl_data_path = settings.get('FEED_URI')
+    all_page_results = []
     
-    if not os.path.exists(crawl_data_path) or os.stat(crawl_data_path).st_size == 0:
-        # 🚨 CRITICAL MESSAGE: Warn user if the crawl was empty
-        print("⚠️ WARNING: Crawl completed but produced no data. Check URL for redirects or blocking.")
-        # Attempt to proceed with only domain checks if no page data exists
-        final_report_data = calculate_seo_score_full([], domain_checks) 
-    else:
+    if os.path.exists(crawl_data_path) and os.stat(crawl_data_path).st_size > 0:
         try:
             with open(crawl_data_path, 'r', encoding='utf-8') as f:
                 all_page_results = [json.loads(line) for line in f if line.strip()] 
         except json.JSONDecodeError as e:
             print(f"JSON Decode Error: {e}")
             return {"error": "Crawl output corrupted.", "url": url, "status": "Failed"}
-        
-        final_report_data = calculate_seo_score_full(all_page_results, domain_checks)
+    else:
+        print("⚠️ WARNING: Crawl produced an empty or non-existent file.")
+    
+    final_report_data = calculate_seo_score_full(all_page_results, domain_checks)
     
     final_report_data["audit_duration_s"] = round(time.time() - start_time, 2)
     
@@ -147,4 +137,3 @@ if __name__ == "__main__":
         pages = audit_results.get('summary_metrics', {}).get('total_pages_crawled', 'N/A')
         duration = audit_results.get('audit_duration_s', 'N/A')
         print(f"Audit complete in {duration} seconds. Total Pages: {pages}. Reports generated in /reports (files named with _{level})")
-        
