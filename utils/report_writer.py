@@ -2,8 +2,9 @@ import json
 import pandas as pd
 import numpy as np
 import datetime
+from textstat import flesch_reading_ease, flesch_kincaid_grade_level
 
-# --- Utility Functions (Score Calculation remains correct) ---
+# --- Utility Functions ---
 
 def calculate_seo_score_page(page_data):
     """Calculates a simple SEO score for a single page (out of 100)."""
@@ -42,7 +43,6 @@ def calculate_seo_score_full(all_page_results, domain_checks):
     """Aggregates all page data, calculates overall scores, and returns full report dictionary."""
     df = pd.json_normalize(all_page_results)
     
-    # Handle case where DataFrame is empty
     if df.empty:
         return {
             "domain_info": domain_checks,
@@ -163,12 +163,6 @@ def _write_url_canonical_section(f, data):
         f.write("  * **SOLUTION:** Add a self-referencing canonical tag to every page to explicitly signal the preferred version to search engines.\n")
         issues = True
     
-    # Check if canonical is pointing to the AMP version (common issue for this data)
-    if canonical_data.get('canonical_url') and "/amp/" in data.get("url") and "/amp/" in canonical_data.get('canonical_url'):
-        f.write("* ❌ **ISSUE:** The Canonical tag on the AMP page points back to another AMP URL.\n")
-        f.write("  * **SOLUTION:** The canonical tag on an AMP page should *always* point to the standard desktop/mobile version of the page, not another AMP page.\n")
-        issues = True
-        
     if not issues:
         f.write("* ✅ **STATUS:** URL is clean, or Canonical tag is correctly managing the page version.\n")
     
@@ -224,7 +218,6 @@ def _write_technical_ux_section(f, data):
     f.write(f"* **Images Missing ALT Tag:** **{image_data.get('missing_alt', 0)}** of {image_data.get('total', 0)} images.\n")
     f.write(f"* **Analytics Setup (GA/GTM):** {'✅ Detected' if (analytics_data.get('google_analytics_found') or analytics_data.get('google_tag_manager_found')) else '❌ Not Detected'}\n")
     
-    # Local SEO is only relevant for local businesses, but we'll report the proxy findings
     f.write(f"* **Local NAP Proxy:** {'✅ Found Key Elements' if (local_data.get('phone_format_found') and local_data.get('address_keywords_found')) else '⚠️ Missing'}\n\n")
 
     f.write("### Issues & Solutions\n")
@@ -298,7 +291,6 @@ def write_summary_report(data, json_path, md_path):
     with open(json_path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
 
-    # 🚨 CRITICAL FIX: Handle empty crawl data at the beginning
     if not data['detailed_page_data']:
         with open(md_path, "w", encoding="utf-8") as f:
             f.write(f"# 👑 PROFESSIONAL SEO AUDIT REPORT\n\n")
@@ -308,25 +300,17 @@ def write_summary_report(data, json_path, md_path):
             f.write("* **Check 1: Redirects:** The URL may be a complex redirect or Google wrapper (e.g., `google.com/url?...`). **Solution:** Use the final, clean destination URL.\n")
             f.write("* **Check 2: JavaScript:** The page content may require JavaScript rendering. **Solution:** This tool is a static crawler; use an alternative tool for JS-heavy sites.\n")
             f.write("* **Check 3: Blocking:** The site's `robots.txt` or server is actively blocking the crawler's user agent.\n")
-        return # <-- This is the most important line.
+        return
 
-    # ----------------------------------------------------------------------
-    # START of successful report generation (the rest of the function continues below)
-    # ----------------------------------------------------------------------
-    
     summary = data["summary_metrics"]
     domain = data["domain_info"]
     competitor = domain.get("competitor_data", {})
     audit_level = domain.get('audit_level', 'standard')
     
-    # Get the detailed data for the first (and likely only) page crawled in a standard audit
     your_homepage_data = data['detailed_page_data'][0]
     
     with open(md_path, "w", encoding="utf-8") as f:
         
-        # ----------------------------------------------------------------------
-        # SECTION 1: EXECUTIVE SUMMARY & SCORE
-        # ----------------------------------------------------------------------
         f.write(f"# 👑 PROFESSIONAL {audit_level.upper()} SEO AUDIT REPORT\n\n")
         f.write(f"## 🎯 Executive Summary for **{domain['url']}**\n\n")
         f.write(f"**Date:** {domain.get('timestamp', 'N/A')} | **Audit Level:** {audit_level.upper()} | **Crawl Type:** On-Page Only\n\n")
@@ -357,9 +341,6 @@ def write_summary_report(data, json_path, md_path):
         
         f.write("\n---\n")
         
-        # ----------------------------------------------------------------------
-        # SECTION 2-5: DETAILED CHECKLIST
-        # ----------------------------------------------------------------------
         f.write("# 📝 DETAILED ON-PAGE AUDIT CHECKLIST\n\n")
 
         _write_meta_section(f, your_homepage_data)
@@ -367,13 +348,9 @@ def write_summary_report(data, json_path, md_path):
         _write_content_headings_section(f, your_homepage_data)
         _write_technical_ux_section(f, your_homepage_data)
         
-        # Standard Audit includes advanced checks
         if audit_level == 'standard':
             _write_advanced_standard_section(f, your_homepage_data)
             
-        # ----------------------------------------------------------------------
-        # SECTION 6: DOMAIN & COMPETITOR ANALYSIS
-        # ----------------------------------------------------------------------
         f.write("## 🌎 Domain Health Summary\n\n")
         f.write(f"* **SSL Status:** {'✅ Valid HTTPS' if domain.get('ssl', {}).get('valid_ssl') else '❌ FAILED (Requires Immediate Action)'}\n")
         f.write(f"* **Robots.txt:** {'✅ Found' if domain.get('robots_sitemap', {}).get('robots.txt') == 'found' else '❌ Missing'}\n")
@@ -385,4 +362,28 @@ def write_summary_report(data, json_path, md_path):
         if competitor.get("status") == "success":
             your_title_len = len(your_homepage_data.get('meta', {}).get('title', ''))
             your_h1 = your_homepage_data.get('headings', {}).get('h1', 0)
-            your_words = your_homepage_data.get('content', {}).ge
+            your_words = your_homepage_data.get('content', {}).get('word_count', 0)
+            
+            comp_title_len = competitor.get('title_length', 'N/A')
+            comp_h1 = competitor.get('h1_count', 'N/A')
+            comp_words = competitor.get('word_count', 'N/A')
+            
+            f.write(f"**Competitor URL:** [{competitor.get('url')}]({competitor.get('url')})\n\n")
+
+            f.write("| Metric | Your Site | Competitor |\n")
+            f.write("| :--- | :--- | :--- |\n")
+            f.write(f"| Title Length (Chars) | {your_title_len} | {comp_title_len} |\n")
+            f.write(f"| H1 Count | {your_h1} | {comp_h1} |\n")
+            f.write(f"| Word Count | {your_words} | {comp_words} |\n")
+        else:
+             f.write(f"Competitor analysis skipped or failed: {competitor.get('error', 'No competitor URL provided.')}\n")
+
+        f.write("\n---\n")
+        
+        if audit_level == 'basic':
+            f.write("## ℹ️ Audit Scope Disclaimer\n")
+            f.write("This **Basic Audit** intentionally skipped advanced, time-consuming checks (Schema, Broken Link Validation, Keyword Analysis) to provide quick feedback.\n")
+            f.write("For a complete analysis, run the **Standard Audit**.\n\n")
+        
+        f.write("### Data Source Note\n")
+        f.write("*Note: This audit is based on open-source static crawling only. It does not include external API data (Google Search Console, Backlink profiles) or verify JavaScript-rendered content.*\n")
