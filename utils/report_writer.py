@@ -2,7 +2,7 @@ import json
 import pandas as pd
 import numpy as np
 import datetime
-from textstat import flesch_reading_ease, flesch_kincaid_grade_level
+# Removed problematic textstat import here to resolve the ImportError
 
 # --- Utility Functions ---
 
@@ -176,6 +176,7 @@ def _write_content_headings_section(f, data):
     
     f.write("### Findings\n")
     f.write(f"* **Total Word Count:** **{content_data.get('word_count', 0)}** words.\n")
+    # This value is pulled from the crawled data, which is where the error was previously.
     f.write(f"* **Readability Score (Flesch):** **{round(content_data.get('readability_score', 0.0), 2)}** (Target > 60).\n")
     f.write(f"* **H1 Tags Found:** **{heading_data.get('h1', 0)}**\n")
     f.write(f"* **H2 Tags Found:** **{heading_data.get('h2', 0)}**\n\n")
