@@ -40,6 +40,7 @@ def competitor_analysis(url):
         r = requests.get(url, timeout=10)
         r.raise_for_status()
         
+        # Note: SEOSpider.run_single_page_checks must be accessible
         temp_results = SEOSpider.run_single_page_checks(url, r.text)
         
         return {
