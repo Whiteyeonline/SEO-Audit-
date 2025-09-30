@@ -1,41 +1,39 @@
-name: Professional SEO Audit
+name: SEO Audit Workflow
 
+# Trigger the workflow manually with input fields
 on:
-  # Allows manual triggering of the workflow from the GitHub Actions tab
   workflow_dispatch:
     inputs:
       audit_url:
-        description: 'The full URL to audit (e.g., https://example.com)'
+        description: 'URL to audit'
         required: true
         default: 'https://example.com'
       audit_level:
-        description: 'Audit intensity (basic or standard)'
-        type: choice
-        options:
-          - basic
-          - standard
+        description: 'Audit level (basic or standard)'
+        required: true
         default: 'standard'
-        required: true
-      audit_scope:
-        description: 'Scope of the crawl'
         type: choice
         options:
-          - only_onpage
-          - onpage_and_index_pages
-          - full_site_250_pages
-        default: 'onpage_and_index_pages'
-        required: true
+        - basic
+        - standard
       competitor_url:
-        description: 'Optional: Competitor URL for comparison (e.g., https://competitor.com)'
+        description: 'Competitor URL for comparison'
         required: false
-        default: ''
+      audit_scope:
+        description: 'Crawl scope'
+        required: true
+        default: 'only_onpage'
+        type: choice
+        options:
+        - only_onpage
+        - onpage_and_index_pages
+        - full_site_250_pages
 
 jobs:
-  seo_audit_job:
+  run-audit:
     runs-on: ubuntu-latest
-    
     steps:
-      - name: Checkout repository
+      - name: Checkout Code
         uses: actions/checkout@v4
 
       - name: Set up Python
@@ -43,29 +41,26 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Install dependencies
+      - name: Install dependencies and corpora 🛠️
         run: |
-          pip install -r requirements.txt
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt --upgrade
+          # Fix for ImportError: Downloads the necessary data for textblob
           python -m textblob.download_corpora
 
-      - name: Prepare Report Directory
-        # Ensure the reports directory exists before main.py runs
-        run: mkdir -p reports
-        
-      - name: Run SEO Audit Script
-        id: run_script
-        run: python main.py
+      - name: Run SEO Audit 🚀
         env:
-          # Pass user inputs as environment variables to the Python script
           AUDIT_URL: ${{ github.event.inputs.audit_url }}
           AUDIT_LEVEL: ${{ github.event.inputs.audit_level }}
-          AUDIT_SCOPE: ${{ github.event.inputs.audit_scope }}
           COMPETITOR_URL: ${{ github.event.inputs.competitor_url }}
+          AUDIT_SCOPE: ${{ github.event.inputs.audit_scope }}
+        run: |
+          python main.py
 
       - name: Upload SEO Audit Reports
         uses: actions/upload-artifact@v4
         with:
           name: seo-audit-reports-${{ github.event.inputs.audit_level }}
-          # Path to the directory containing the report files
           path: reports/
+          # Keeps the report for 5 days. You can adjust this value.
           retention-days: 5
