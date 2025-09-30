@@ -1,7 +1,7 @@
 import json
 import pandas as pd
 import numpy as np
-import datetime
+from datetime import datetime
 
 def calculate_seo_score_page(page_data):
     """Calculates a simple SEO score for a single page (out of 100)."""
@@ -15,14 +15,13 @@ def calculate_seo_score_page(page_data):
     
     if page_data.get("is_crawlable", False):
         word_count = page_data.get("content", {}).get("word_count", 0)
-        if page_data.get("meta", {}).get("title") in ["", None]: penalties += 10
-        if page_data.get("meta", {}).get("description") in ["", None]: penalties += 10
+        if not page_data.get("meta", {}).get("title"): penalties += 10
+        if not page_data.get("meta", {}).get("description"): penalties += 10
         if page_data.get("headings", {}).get("h1", 0) != 1: penalties += 5 
         if word_count < 250: penalties += 10
         
-        if page_data.get("mobile", {}).get("mobile_friendly", False) == False: penalties += 5
+        if not page_data.get("mobile", {}).get("mobile_friendly", False): penalties += 5
         
-        # Check for broken links only if the key exists (i.e., if it was a Standard Audit)
         if page_data.get("links", {}).get("broken"): 
              penalties += min(10, len(page_data["links"]["broken"]) * 1) 
         
@@ -78,7 +77,6 @@ def calculate_seo_score_full(all_page_results, domain_checks):
     if 'links.broken' in df.columns:
         broken_links_count = df['links.broken'].apply(lambda x: len(x) if isinstance(x, list) else 0).sum()
 
-    # FIX: Convert numpy data types to standard Python data types for JSON serialization
     summary_metrics = {
         "overall_score": float(round(final_site_score, 2)),
         "total_pages_crawled": int(total_pages),
@@ -91,7 +89,6 @@ def calculate_seo_score_full(all_page_results, domain_checks):
         "total_broken_links_found": int(broken_links_count),
     }
     
-    # We must also ensure detailed page data is serializable.
     detailed_page_data = []
     for record in df.to_dict(orient='records'):
         for k, v in record.items():
@@ -119,7 +116,6 @@ def _write_meta_section(f, data):
     
     f.write("## 📝 Search Result Summary & Meta Tags\n\n")
     
-    # SERP Snippet Simulation
     f.write("### Search Engine Snippet Simulation\n\n")
     f.write(f"```\n")
     f.write(f"TITLE: {title or '[MISSING TITLE]'}\n")
@@ -191,7 +187,6 @@ def _write_content_headings_section(f, data):
     
     f.write("### Findings\n")
     f.write(f"* **Total Word Count:** **{content_data.get('word_count', 0)}** words.\n")
-    # This value is pulled from the crawled data, which is where the error was previously.
     f.write(f"* **Readability Score (Flesch):** **{round(content_data.get('readability_score', 0.0), 2)}** (Target > 60).\n")
     f.write(f"* **H1 Tags Found:** **{heading_data.get('h1', 0)}**\n")
     f.write(f"* **H2 Tags Found:** **{heading_data.get('h2', 0)}**\n\n")
@@ -233,7 +228,6 @@ def _write_technical_ux_section(f, data):
     f.write(f"* **Mobile Friendly (Viewport):** {'✅ Yes' if mobile_data.get('mobile_friendly') else '❌ No'}\n")
     f.write(f"* **Images Missing ALT Tag:** **{image_data.get('missing_alt', 0)}** of {image_data.get('total', 0)} images.\n")
     f.write(f"* **Analytics Setup (GA/GTM):** {'✅ Detected' if (analytics_data.get('google_analytics_found') or analytics_data.get('google_tag_manager_found')) else '❌ Not Detected'}\n")
-    
     f.write(f"* **Local NAP Proxy:** {'✅ Found Key Elements' if (local_data.get('phone_format_found') and local_data.get('address_keywords_found')) else '⚠️ Missing'}\n\n")
 
     f.write("### Issues & Solutions\n")
@@ -301,9 +295,8 @@ def write_summary_report(data, json_path, md_path):
     """Writes the final comprehensive full-site JSON and PROFESSIONAL Markdown report."""
     
     if 'timestamp' not in data['domain_info']:
-         data['domain_info']['timestamp'] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+         data['domain_info']['timestamp'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-    # Save raw JSON
     with open(json_path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
 
