@@ -398,4 +398,5 @@ def write_summary_report(data, json_path, md_path):
         
         if audit_level == 'basic':
             f.write("## ℹ️ Audit Scope Disclaimer\n")
-            f.write("This **Basic Audit** i
+            f.write("This **Basic Audit** intentionally skipped advanced, time-consuming checks (Schema, Broken Link Validation, Keyword Analysis) to provide quick feedback.\n")
+            f.write("For a complete analysis, run the **Standard Audit**.\n\n")
