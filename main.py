@@ -101,8 +101,9 @@ def seo_audit(url, level, scope, competitor_url):
     
     if os.path.exists(crawl_data_path) and os.stat(crawl_data_path).st_size > 0:
         try:
+            # FIX: Correctly read a single JSON array from the file
             with open(crawl_data_path, 'r', encoding='utf-8') as f:
-                all_page_results = [json.loads(line) for line in f if line.strip()] 
+                all_page_results = json.load(f)
         except json.JSONDecodeError as e:
             print(f"JSON Decode Error: {e}")
             return {"error": "Crawl output corrupted.", "url": url, "status": "Failed"}
