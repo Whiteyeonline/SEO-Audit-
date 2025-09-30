@@ -40,9 +40,26 @@ def calculate_seo_score_page(page_data):
 
 def calculate_seo_score_full(all_page_results, domain_checks):
     """Aggregates all page data, calculates overall scores, and returns full report dictionary."""
-    
-    # ... (score aggregation logic is correct and omitted for brevity)
     df = pd.json_normalize(all_page_results)
+    
+    # Handle case where DataFrame is empty
+    if df.empty:
+        return {
+            "domain_info": domain_checks,
+            "summary_metrics": {
+                "overall_score": 0,
+                "total_pages_crawled": 0,
+                "indexable_pages": 0,
+                "broken_pages_4xx": 0,
+                "server_errors_5xx": 0,
+                "no_h1_pages": 0,
+                "thin_content_pages": 0,
+                "missing_title_pages": 0,
+                "total_broken_links_found": 0
+            },
+            "detailed_page_data": []
+        }
+        
     df['page_score'] = df.apply(calculate_seo_score_page, axis=1)
     
     domain_penalty = 0
@@ -281,27 +298,30 @@ def write_summary_report(data, json_path, md_path):
     with open(json_path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
 
-    # Prepare Markdown Report
+    # 🚨 CRITICAL FIX: Handle empty crawl data at the beginning
+    if not data['detailed_page_data']:
+        with open(md_path, "w", encoding="utf-8") as f:
+            f.write(f"# 👑 PROFESSIONAL SEO AUDIT REPORT\n\n")
+            f.write(f"## ❌ CRITICAL CRAWL FAILURE\n\n")
+            f.write(f"The audit failed to extract any content from the starting URL **{data['domain_info']['url']}**.\n\n")
+            f.write("### Potential Causes and Solutions:\n")
+            f.write("* **Check 1: Redirects:** The URL may be a complex redirect or Google wrapper (e.g., `google.com/url?...`). **Solution:** Use the final, clean destination URL.\n")
+            f.write("* **Check 2: JavaScript:** The page content may require JavaScript rendering. **Solution:** This tool is a static crawler; use an alternative tool for JS-heavy sites.\n")
+            f.write("* **Check 3: Blocking:** The site's `robots.txt` or server is actively blocking the crawler's user agent.\n")
+        return # <-- This is the most important line.
+
+    # ----------------------------------------------------------------------
+    # START of successful report generation (the rest of the function continues below)
+    # ----------------------------------------------------------------------
+    
     summary = data["summary_metrics"]
     domain = data["domain_info"]
     competitor = domain.get("competitor_data", {})
     audit_level = domain.get('audit_level', 'standard')
     
     # Get the detailed data for the first (and likely only) page crawled in a standard audit
-    your_homepage_data = data['detailed_page_data'][0] if data['detailed_page_data'] else {}
+    your_homepage_data = data['detailed_page_data'][0]
     
-    if not your_homepage_data:
-        # Fallback for completely failed crawl
-        with open(md_path, "w", encoding="utf-8") as f:
-            f.write(f"# 👑 PROFESSIONAL SEO AUDIT REPORT\n\n")
-            f.write(f"## ❌ CRITICAL CRAWL FAILURE\n\n")
-            f.write(f"The audit failed to extract any content from the starting URL **{domain['url']}**.\n\n")
-            f.write("### Potential Causes and Solutions:\n")
-            f.write("* **Check 1: Redirects:** The URL may be a Google redirect wrapper or a complex chain. **Solution:** Use the final destination URL.\n")
-            f.write("* **Check 2: JavaScript:** The page content may require JavaScript rendering. **Solution:** This tool is a static crawler; use an alternative tool for JS-heavy sites.\n")
-            f.write("* **Check 3: Blocking:** The site's `robots.txt` or server is actively blocking the crawler's user agent.\n")
-        return
-
     with open(md_path, "w", encoding="utf-8") as f:
         
         # ----------------------------------------------------------------------
@@ -324,7 +344,6 @@ def write_summary_report(data, json_path, md_path):
         f.write("--- \n\n")
 
         f.write("## 💡 Top Actionable Priority\n\n")
-        # Identify top priority based on severity
         if not domain.get('ssl', {}).get('valid_ssl'):
             f.write("1. 🔴 **CRITICAL: Install Valid SSL Certificate.** Your site is flagged as insecure.\n")
         elif your_homepage_data.get("status_code") >= 400:
@@ -366,18 +385,4 @@ def write_summary_report(data, json_path, md_path):
         if competitor.get("status") == "success":
             your_title_len = len(your_homepage_data.get('meta', {}).get('title', ''))
             your_h1 = your_homepage_data.get('headings', {}).get('h1', 0)
-            your_words = your_homepage_data.get('content', {}).get('word_count', 0)
-            
-            comp_title_len = competitor.get('title_length', 'N/A')
-            comp_h1 = competitor.get('h1_count', 'N/A')
-            comp_words = competitor.get('word_count', 'N/A')
-            
-            f.write(f"**Competitor URL:** [{competitor.get('url')}]({competitor.get('url')})\n\n")
-
-            f.write("| Metric | Your Site | Competitor |\n")
-            f.write("| :--- | :--- | :--- |\n")
-            f.write(f"| Title Length (Chars) | {your_title_len} | {comp_title_len} |\n")
-            f.write(f"| H1 Count | {your_h1} | {comp_h1} |\n")
-            f.write(f"| Word Count | {your_words} | {comp_words} |\n")
-        else:
-             f.write(f"Competitor analysis skipped or failed: {compe
+            your_words = your_homepage_data.get('content', {}).ge
