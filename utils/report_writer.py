@@ -2,9 +2,6 @@ import json
 import pandas as pd
 import numpy as np
 import datetime
-# Removed problematic textstat import here to resolve the ImportError
-
-# --- Utility Functions ---
 
 def calculate_seo_score_page(page_data):
     """Calculates a simple SEO score for a single page (out of 100)."""
@@ -77,27 +74,37 @@ def calculate_seo_score_full(all_page_results, domain_checks):
     
     final_site_score = max(0, avg_page_score - domain_penalty - critical_penalty)
 
-    # FIX: Safely calculate total broken links, which may not exist for Basic audits
     broken_links_count = 0
     if 'links.broken' in df.columns:
         broken_links_count = df['links.broken'].apply(lambda x: len(x) if isinstance(x, list) else 0).sum()
 
+    # FIX: Convert numpy data types to standard Python data types for JSON serialization
     summary_metrics = {
-        "overall_score": round(final_site_score, 2),
-        "total_pages_crawled": total_pages,
-        "indexable_pages": df[df['status_code'] == 200].shape[0],
-        "broken_pages_4xx": df[(df['status_code'] >= 400) & (df['status_code'] < 500)].shape[0],
-        "server_errors_5xx": critical_errors_count,
-        "no_h1_pages": df[df['headings.h1'] == 0].shape[0] + df[df['headings.h1'] > 1].shape[0],
-        "thin_content_pages": df[df['content.word_count'] < 250].shape[0],
-        "missing_title_pages": df['meta.title'].apply(lambda x: not x or x == 'N/A').sum(),
-        "total_broken_links_found": broken_links_count,
+        "overall_score": float(round(final_site_score, 2)),
+        "total_pages_crawled": int(total_pages),
+        "indexable_pages": int(df[df['status_code'] == 200].shape[0]),
+        "broken_pages_4xx": int(df[(df['status_code'] >= 400) & (df['status_code'] < 500)].shape[0]),
+        "server_errors_5xx": int(critical_errors_count),
+        "no_h1_pages": int(df[df['headings.h1'] == 0].shape[0] + df[df['headings.h1'] > 1].shape[0]),
+        "thin_content_pages": int(df[df['content.word_count'] < 250].shape[0]),
+        "missing_title_pages": int(df['meta.title'].apply(lambda x: not x or x == 'N/A').sum()),
+        "total_broken_links_found": int(broken_links_count),
     }
     
+    # We must also ensure detailed page data is serializable.
+    detailed_page_data = []
+    for record in df.to_dict(orient='records'):
+        for k, v in record.items():
+            if isinstance(v, (np.integer, np.int64)):
+                record[k] = int(v)
+            elif isinstance(v, (np.floating, np.float64)):
+                record[k] = float(v)
+        detailed_page_data.append(record)
+        
     full_report_data = {
         "domain_info": domain_checks,
         "summary_metrics": summary_metrics,
-        "detailed_page_data": df.to_dict(orient='records')
+        "detailed_page_data": detailed_page_data
     }
     
     return full_report_data
@@ -273,7 +280,6 @@ def _write_advanced_standard_section(f, data):
         issues = True
         
     if len(links_data.get('broken', [])) > 0:
-        # FIX: Replaced direct bracket access with .get() to prevent KeyError
         f.write(f"* ❌ **ISSUE:** **{len(links_data.get('broken', []))}** broken external links were identified. (Sample: {', '.join(links_data.get('broken', [])[:3])}...)\n")
         f.write("  * **SOLUTION:** Replace or remove broken links. Too many 404 links damage trust and user experience.\n")
         issues = True
@@ -392,8 +398,4 @@ def write_summary_report(data, json_path, md_path):
         
         if audit_level == 'basic':
             f.write("## ℹ️ Audit Scope Disclaimer\n")
-            f.write("This **Basic Audit** intentionally skipped advanced, time-consuming checks (Schema, Broken Link Validation, Keyword Analysis) to provide quick feedback.\n")
-            f.write("For a complete analysis, run the **Standard Audit**.\n\n")
-        
-        f.write("### Data Source Note\n")
-        
+            f.write("This **Basic Audit** i
