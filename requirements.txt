@@ -6,6 +6,7 @@ tldextract
 validators
 textblob
 textstat
+nltk 
 
 # Dependencies for Full-Site Crawling & Reporting
 scrapy
