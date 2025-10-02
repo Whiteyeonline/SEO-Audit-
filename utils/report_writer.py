@@ -1,5 +1,6 @@
 import json
 from datetime import datetime
+from urllib.parse import urlparse
 
 def analyze_page_issues(page):
     issues = []
@@ -141,13 +142,15 @@ def write_summary_report(data, json_path, md_path):
         # Title and summary
         f.write(f"# 👑 PROFESSIONAL {audit_level.upper()} SEO AUDIT REPORT for {domain_name}\n\n")
         f.write(f"**Audit Date:** {timestamp}\n\n")
+        
         f.write("## 🎯 Executive Summary\n\n")
         f.write("| Metric | Value |\n")
+        f.write("| :--- | :--- |\n") # Added separator line for better table rendering
         for k, v in summary.items():
             f.write(f"| {k.replace('_',' ').title()} | {v} |\n")
-        f.write("\n---\n")
+        f.write("\n---\n\n") # Added extra line break
 
-        # Domain-Level Technical Checks section (FIX: Includes SSL)
+        # Domain-Level Technical Checks section
         f.write("## 🔒 Domain-Level Technical Checks\n\n")
         ssl_status = data['domain_info'].get('ssl', {}).get('valid_ssl', False)
         robots_status = data['domain_info'].get('robots_sitemap', {}).get('robots.txt', 'N/A')
@@ -158,16 +161,17 @@ def write_summary_report(data, json_path, md_path):
         f.write(f"- **robots.txt:** {'✅ Found' if 'found' in robots_status else '❌ Not Found'}\n")
         f.write(f"- **sitemap.xml:** {'✅ Found' if 'found' in sitemap_status else '⚠️ Not Found'}\n")
         f.write(f"- **Initial Load Time:** {load_time}ms (Target: < 500ms)\n")
-        f.write("\n---\n")
+        f.write("\n---\n\n") # Added extra line break
 
 
         # SEO Score section
-        f.write(f"## ⭐ SEO Score Summary\n")
-        f.write(f"- **Average SEO Score:** {avg_score}/100\n")
+        f.write(f"## ⭐ SEO Score Summary\n\n") # Added extra line break
+        f.write(f"- **Average SEO Score:** {avg_score}/100\n\n")
         for p in page_scores:
             url_display = p["url"] if p["url"] else "Homepage"
-            f.write(f"    - {url_display}: {p['seo_score']}/100\n")
-        f.write("\n---\n")
+            # Added a space after the dash for better bullet point display
+            f.write(f"- {url_display}: {p['seo_score']}/100\n")
+        f.write("\n---\n\n") # Added extra line break
 
         # Top Actionable Priority
         homepage = data['detailed_page_data'][0] if data['detailed_page_data'] else {}
@@ -176,13 +180,14 @@ def write_summary_report(data, json_path, md_path):
         homepage_score = data['page_scores'][0]['seo_score'] if data['page_scores'] else 100
         
         f.write("## 💡 Top Actionable Priority\n\n")
-        f.write(f"**Homepage SEO Score:** {homepage_score}/100\n")
+        f.write(f"**Homepage SEO Score:** {homepage_score}/100\n\n") # Added extra line break
         if issues:
             for i, (issue, solution) in enumerate(zip(issues, solutions), 1):
-                f.write(f"{i}. {issue} Solution: {solution}\n")
+                # Using '- ' for cleaner bullet points
+                f.write(f"- **{i}. {issue}**\n  - *Solution:* {solution}\n\n") # Added indentation and spacing
         else:
-            f.write("1. ✅ STATUS: No critical issues found. Focus on medium priority items below.\n")
-        f.write("\n---\n")
+            f.write("- **1. ✅ STATUS:** No critical issues found. Focus on medium priority items below.\n\n")
+        f.write("\n---\n\n") # Added extra line break
 
         # Per-page audit: summary, issues, solutions, SEO score
         f.write("# 📝 DETAILED ON-PAGE AUDIT CHECKLIST\n\n")
@@ -192,29 +197,32 @@ def write_summary_report(data, json_path, md_path):
             solutions = page.get('solutions', [])
             score = data['page_scores'][idx]['seo_score'] if idx < len(data['page_scores']) else 100
 
-            f.write(f"### Page {idx+1} ({domain_name}): [{url}]({url})\n")
+            f.write(f"### Page {idx+1} ({domain_name}): [{url}]({url})\n\n")
             f.write(f"- **SEO Score:** {score}/100\n")
             f.write(f"- **Title:** {page.get('meta',{}).get('title','[MISSING]')}\n")
             f.write(f"- **Meta Description:** {page.get('meta',{}).get('description','[MISSING]')}\n")
             f.write(f"- **H1 Tags:** {page.get('headings',{}).get('h1',0)}\n")
             f.write(f"- **Word Count:** {page.get('content',{}).get('word_count',0)}\n")
-            f.write(f"- **Mobile Friendly:** {'✅' if page.get('mobile',{}).get('mobile_friendly') else '❌'}\n")
+            f.write(f"- **Mobile Friendly:** {'✅' if page.get('mobile',{}).get('mobile_friendly') else '❌'}\n\n")
+
             backlinks = page.get("backlinks", {})
             f.write("#### 🌐 Backlinks/External Links\n")
             f.write(f"- **Internal Link Count:** {backlinks.get('internal_link_count','N/A')}\n")
             f.write(f"- **External Link Count:** {backlinks.get('external_link_count','N/A')}\n")
             f.write(f"- **Sample External Domains:** {', '.join(backlinks.get('sample_external_domains',[]))}\n")
-            f.write("- **Note:** This audit lists the external domains your site links to. To discover who links to your site (backlinks), use Google Search Console or paid tools.\n")
-            f.write("\n#### Issues Found & Solutions\n")
+            f.write("- **Note:** This audit lists the external domains your site links to. To discover who links to your site (backlinks), use Google Search Console or paid tools.\n\n")
+
+            f.write("#### Issues Found & Solutions\n")
             if issues:
                 for i, (issue, solution) in enumerate(zip(issues, solutions), 1):
-                    f.write(f"{i}. {issue} Solution: {solution}\n")
+                    # Using '- ' for cleaner bullet points and indentation
+                    f.write(f"- **{i}. {issue}**\n  - *Solution:* {solution}\n")
             else:
                 f.write("✅ No major issues found on this page.\n")
-            f.write("\n---\n")
+            f.write("\n---\n\n")
 
         # Competitor Section
-        f.write("## 📈 Competitor Analysis\n")
+        f.write("## 📈 Competitor Analysis\n\n")
         if competitor.get("status") == "success":
             f.write(f"- **Competitor URL:** [{competitor.get('url')}]({competitor.get('url')})\n")
             f.write(f"- **Title Length:** {competitor.get('title_length','N/A')}\n")
@@ -222,10 +230,10 @@ def write_summary_report(data, json_path, md_path):
             f.write(f"- **Word Count:** {competitor.get('word_count','N/A')}\n")
         else:
             f.write(f"Competitor analysis skipped or failed: {competitor.get('error','No competitor URL provided.')}\n")
-        f.write("\n---\n")
+        f.write("\n---\n\n")
 
         # Disclaimer & Backlink Help
-        f.write("## ℹ️ Audit Scope Disclaimer and Backlink Help\n")
+        f.write("## ℹ️ Audit Scope Disclaimer and Backlink Help\n\n")
         f.write("This audit covers on-page and technical SEO. It **does not** show who links to your site (backlinks).\n")
         f.write("To check your real backlinks for free:\n")
         f.write("- If you own the site, use [Google Search Console](https://search.google.com/search-console/about), go to 'Links' → 'External Links'.\n")
@@ -233,4 +241,41 @@ def write_summary_report(data, json_path, md_path):
         f.write("- All issues above include a solution you can do yourself, without paid tools.\n")
         f.write("If you want more help fixing issues, contact us!\n")
         f.write(f"\n---\n**Audit ID:** `{timestamp}`\n")
+
+
+# --- NEW FUNCTION FOR TWO-STAGE LINK CHECKING ---
+def write_external_link_list(data):
+    """
+    Extracts all unique external links and saves them to a text file for
+    later asynchronous checking. This is the recommended way to handle broken links.
+    """
+    external_links = set()
+    
+    for page in data.get('detailed_page_data', []):
+        # Links are extracted in the meta_check and stored here:
+        all_links = page.get('meta', {}).get('links', [])
         
+        # Determine the domain of the site being audited
+        audit_url = data['domain_info'].get('url', '')
+        if not audit_url: continue
+
+        audit_netloc = urlparse(audit_url).netloc
+        
+        for link in all_links:
+            parsed_link = urlparse(link)
+            # Check if link has a network location (i.e., not a relative path)
+            # AND if the network location is different from the audited domain
+            if parsed_link.netloc and parsed_link.netloc != audit_netloc:
+                # Reconstruct the URL without fragments/query params for cleaner checking
+                clean_link = parsed_link.scheme + "://" + parsed_link.netloc + parsed_link.path
+                external_links.add(clean_link)
+
+    # Save the list to a file
+    list_path = "reports/external_links_to_check.txt"
+    with open(list_path, "w", encoding="utf-8") as f:
+        f.write("# External links found during the SEO Audit (Check these asynchronously):\n")
+        for link in sorted(list(external_links)):
+            f.write(link + "\n")
+            
+    print(f"\n✅ Saved {len(external_links)} unique external links to {list_path}")
+
