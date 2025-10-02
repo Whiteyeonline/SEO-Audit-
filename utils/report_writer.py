@@ -1,89 +1,140 @@
 import json
-import pandas as pd
-import numpy as np
 from datetime import datetime
 
-# ... [all your helper functions stay as is, unless you want visual improvements] ...
+def analyze_page_issues(page):
+    issues = []
+    solutions = []
+
+    # Title tag
+    title = page.get('meta', {}).get('title', '')
+    if not title:
+        issues.append("❌ Title tag missing.")
+        solutions.append("Add a unique, keyword-focused title tag (50-60 chars).")
+    elif len(title) < 30 or len(title) > 60:
+        issues.append(f"⚠️ Title length ({len(title)}) not optimal.")
+        solutions.append("Rewrite title to 50-60 characters for best SEO.")
+
+    # Meta description
+    description = page.get('meta', {}).get('description', '')
+    if not description:
+        issues.append("❌ Meta description missing.")
+        solutions.append("Add a compelling meta description (150-160 chars).")
+
+    # H1
+    h1_count = page.get('headings', {}).get('h1', 0)
+    if h1_count != 1:
+        issues.append(f"❌ Page has {h1_count} H1 tags (should be exactly 1).")
+        solutions.append("Add one unique H1 tag summarizing page topic.")
+
+    # Content/word count
+    word_count = page.get('content', {}).get('word_count', 0)
+    if word_count < 250:
+        issues.append(f"⚠️ Thin content (Word Count: {word_count}).")
+        solutions.append("Expand content above 500 words for value and ranking.")
+
+    # Mobile friendly
+    mobile_friendly = page.get('mobile', {}).get('mobile_friendly', False)
+    if not mobile_friendly:
+        issues.append("❌ Not mobile friendly.")
+        solutions.append("Add a `<meta name=\"viewport\" content=\"width=device-width\">` tag in the HTML.")
+
+    # Alt tags for images
+    missing_alt = page.get('images', {}).get('missing_alt', 0)
+    if missing_alt > 0:
+        issues.append(f"⚠️ {missing_alt} images missing ALT attributes.")
+        solutions.append("Add descriptive alt text to all images.")
+
+    # Analytics
+    analytics = page.get('analytics', {}).get('google_analytics_found', False) or \
+                page.get('analytics', {}).get('google_tag_manager_found', False)
+    if not analytics:
+        issues.append("❌ No Google Analytics or Tag Manager detected.")
+        solutions.append("Add Google Analytics or GTM script to your site.")
+
+    # Canonical
+    canonical = page.get('canonical', {}).get('canonical_url', '')
+    if not canonical:
+        issues.append("❌ Canonical tag missing.")
+        solutions.append("Add a self-referencing canonical tag to every page.")
+
+    # Schema markup (for standard audit)
+    if "schema" in page:
+        schema_count = page.get("schema", {}).get("found_count", 0)
+        if schema_count == 0:
+            issues.append("⚠️ No Schema markup found.")
+            solutions.append("Add relevant Schema (Article, LocalBusiness, etc.) for rich results.")
+
+    # Broken links (for standard audit)
+    if "links" in page:
+        broken_links = page.get("links", {}).get("broken", [])
+        if broken_links:
+            issues.append(f"❌ {len(broken_links)} broken external links found.")
+            solutions.append("Replace or remove broken links (404 errors).")
+
+    return issues, solutions
 
 def write_summary_report(data, json_path, md_path):
-    """Writes the final comprehensive full-site JSON and PROFESSIONAL Markdown report, ensuring both match in all details."""
-    # Add timestamp if missing
     if 'timestamp' not in data['domain_info']:
         data['domain_info']['timestamp'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-    # Write JSON report (unchanged)
+    domain_name = data['domain_info'].get('url', 'N/A')
+    audit_level = data['domain_info'].get('audit_level', 'standard')
+    timestamp = data['domain_info'].get('timestamp', 'N/A')
+    summary = data.get('summary_metrics', {})
+    competitor = data['domain_info'].get('competitor_data', {})
+
+    # Write JSON report
     with open(json_path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
 
     # Write Markdown report
     with open(md_path, "w", encoding="utf-8") as f:
-        domain = data["domain_info"]
-        summary = data["summary_metrics"]
-        competitor = domain.get("competitor_data", {})
-        audit_level = domain.get('audit_level', 'standard')
-        timestamp = domain.get('timestamp', 'N/A')
-
-        f.write(f"# 👑 PROFESSIONAL {audit_level.upper()} SEO AUDIT REPORT\n\n")
-        f.write(f"## 🎯 Executive Summary for **{domain['url']}**\n\n")
+        # Title and summary
+        f.write(f"# 👑 PROFESSIONAL {audit_level.upper()} SEO AUDIT REPORT for {domain_name}\n\n")
         f.write(f"**Audit Date:** {timestamp}\n\n")
-
-        # Summary Table
-        status_text, emoji = "", ""
-        if summary['overall_score'] > 90: status_text, emoji = "Excellent (Maintain Strategy)", "✅"
-        elif summary['overall_score'] > 75: status_text, emoji = "Good (Minor Improvements Needed)", "🟢"
-        elif summary['overall_score'] > 50: status_text, emoji = "Fair (High-Priority Fixes Needed)", "🟡"
-        else: status_text, emoji = "Poor (CRITICAL Intervention Required)", "🛑"
-        f.write("--- \n")
-        f.write("| Metric | Value | \n")
+        f.write("## 🎯 Executive Summary\n\n")
+        f.write("| Metric | Value |\n")
         for k, v in summary.items():
             f.write(f"| {k.replace('_',' ').title()} | {v} |\n")
-        f.write(f"\n| **Overall Site Health Score** | **{summary['overall_score']}/100** | **{emoji} {status_text}** |\n")
-        f.write("--- \n\n")
-
-        # Actionable Priority
-        f.write("## 💡 Top Actionable Priority\n\n")
-        homepage = data['detailed_page_data'][0] if data['detailed_page_data'] else {}
-        if not domain.get('ssl', {}).get('valid_ssl'):
-            f.write("1. 🔴 **CRITICAL: Install Valid SSL Certificate.** Your site is flagged as insecure.\n")
-        elif homepage.get("status_code", 200) >= 400:
-            f.write(f"1. 🔴 **CRITICAL: Fix Status Code {homepage.get('status_code')}.** This page is not indexable and must be fixed with 301/200 codes.\n")
-        elif not homepage.get("meta", {}).get("title"):
-            f.write("1. 🔴 **CRITICAL: Add Title Tag.** The page is missing its most important ranking factor.\n")
-        elif homepage.get("headings", {}).get("h1", 0) != 1:
-            f.write(f"1. 🟠 **HIGH: Fix H1 Count.** Page has {homepage.get('headings', {}).get('h1', 0)} H1 tags (should be exactly 1).\n")
-        else:
-            f.write("1. ✅ **STATUS:** No critical issues found. Focus on the medium priority items below.\n")
         f.write("\n---\n")
 
-        # Detailed audit for ALL pages - MATCHES JSON!
+        # Top Actionable Priority
+        homepage = data['detailed_page_data'][0] if data['detailed_page_data'] else {}
+        issues, solutions = analyze_page_issues(homepage)
+        f.write("## 💡 Top Actionable Priority\n\n")
+        if issues:
+            for i, (issue, solution) in enumerate(zip(issues, solutions), 1):
+                f.write(f"{i}. {issue} Solution: {solution}\n")
+        else:
+            f.write("1. ✅ STATUS: No critical issues found. Focus on medium priority items below.\n")
+        f.write("\n---\n")
+
+        # Per-page audit: summary, issues, solutions
         f.write("# 📝 DETAILED ON-PAGE AUDIT CHECKLIST\n\n")
         for idx, page in enumerate(data['detailed_page_data']):
             url = page.get("url", "")
-            f.write(f"### Page {idx+1}: [{url}]({url})\n")
-            _write_meta_section(f, page)
-            _write_url_canonical_section(f, page)
-            _write_content_headings_section(f, page)
-            _write_technical_ux_section(f, page)
-            if audit_level == 'standard':
-                _write_advanced_standard_section(f, page)
-
-            # Backlinks Section (always shown)
+            f.write(f"### Page {idx+1} ({domain_name}): [{url}]({url})\n")
+            f.write(f"- **Title:** {page.get('meta',{}).get('title','[MISSING]')}\n")
+            f.write(f"- **Meta Description:** {page.get('meta',{}).get('description','[MISSING]')}\n")
+            f.write(f"- **H1 Tags:** {page.get('headings',{}).get('h1',0)}\n")
+            f.write(f"- **Word Count:** {page.get('content',{}).get('word_count',0)}\n")
+            f.write(f"- **Mobile Friendly:** {'✅' if page.get('mobile',{}).get('mobile_friendly') else '❌'}\n")
             backlinks = page.get("backlinks", {})
             f.write("#### 🌐 Backlinks/External Links\n")
             f.write(f"- **Internal Link Count:** {backlinks.get('internal_link_count','N/A')}\n")
             f.write(f"- **External Link Count:** {backlinks.get('external_link_count','N/A')}\n")
             f.write(f"- **Sample External Domains:** {', '.join(backlinks.get('sample_external_domains',[]))}\n")
-            f.write(f"- **Note:** {backlinks.get('note','[No backlink data available]')}\n")
+            f.write("- **Note:** This audit lists the external domains your site links to. To discover who links to your site (backlinks), use Google Search Console or paid tools.\n")
+            f.write("\n#### Issues Found & Solutions\n")
+            issues, solutions = analyze_page_issues(page)
+            if issues:
+                for i, (issue, solution) in enumerate(zip(issues, solutions), 1):
+                    f.write(f"{i}. {issue} Solution: {solution}\n")
+            else:
+                f.write("✅ No major issues found on this page.\n")
             f.write("\n---\n")
 
-        # Domain Health (matches JSON summary)
-        f.write("## 🌎 Domain Health Summary\n\n")
-        f.write(f"* **SSL Status:** {'✅ Valid HTTPS' if domain.get('ssl', {}).get('valid_ssl') else '❌ FAILED (Requires Immediate Action)'}\n")
-        f.write(f"* **Robots.txt:** {'✅ Found' if domain.get('robots_sitemap', {}).get('robots.txt') == 'found' else '❌ Missing'}\n")
-        f.write(f"* **Sitemap.xml:** {'✅ Found' if domain.get('robots_sitemap', {}).get('sitemap') == 'found' else '⚠️ Not Found'}\n")
-        f.write("\n---\n")
-
-        # Competitor (matches JSON)
+        # Competitor Section
         f.write("## 📈 Competitor Analysis\n")
         if competitor.get("status") == "success":
             f.write(f"- **Competitor URL:** [{competitor.get('url')}]({competitor.get('url')})\n")
@@ -94,12 +145,12 @@ def write_summary_report(data, json_path, md_path):
             f.write(f"Competitor analysis skipped or failed: {competitor.get('error','No competitor URL provided.')}\n")
         f.write("\n---\n")
 
-        # Disclaimer (always matches JSON)
-        if audit_level == 'basic':
-            f.write("## ℹ️ Audit Scope Disclaimer\n")
-            f.write("This **Basic Audit** intentionally skipped advanced, time-consuming checks (Schema, Broken Link Validation, Keyword Analysis) to provide quick feedback.\n")
-            f.write("For a complete analysis, run the **Standard Audit**.\n\n")
-
-        # Traceability
-        f.write(f"\n---\n**Audit ID:** `{timestamp}`. This report matches summary and detailed data from the JSON output.\n")
-        
+        # Disclaimer & Backlink Help
+        f.write("## ℹ️ Audit Scope Disclaimer and Backlink Help\n")
+        f.write("This audit covers on-page and technical SEO. It **does not** show who links to your site (backlinks).\n")
+        f.write("To check your real backlinks for free:\n")
+        f.write("- If you own the site, use [Google Search Console](https://search.google.com/search-console/about), go to 'Links' → 'External Links'.\n")
+        f.write("- For a few free checks, try online tools like [ahrefs.com/backlink-checker](https://ahrefs.com/backlink-checker) (limited results).\n")
+        f.write("- All issues above include a solution you can do yourself, without paid tools.\n")
+        f.write("If you want more help fixing issues, contact us!\n")
+        f.write(f"\n---\n**Audit ID:** `{timestamp}`\n")
