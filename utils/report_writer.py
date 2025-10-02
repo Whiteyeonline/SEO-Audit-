@@ -73,21 +73,48 @@ def analyze_page_issues(page):
 
     return issues, solutions
 
-def calculate_seo_score(issues):
+def calculate_seo_score(all_page_results, domain_checks):
     """
-    Assigns a score out of 100.
-    - Each ❌ (critical) issue: -15 points
-    - Each ⚠️ (warning) issue: -7 points
-    - Minimum score: 0
-    - Perfect (no issues): 100
+    Calculates SEO scores for all pages and aggregates summary metrics,
+    incorporating domain-level checks.
+    Returns a dictionary suitable for reporting.
     """
-    score = 100
-    for issue in issues:
-        if issue.startswith("❌"):
-            score -= 15
-        elif issue.startswith("⚠️"):
-            score -= 7
-    return max(score, 0)
+    # Detailed page scores and issues
+    page_scores = []
+    detailed_page_data = []
+    for page in all_page_results:
+        issues, solutions = analyze_page_issues(page)
+        score = 100
+        for issue in issues:
+            if issue.startswith("❌"):
+                score -= 15
+            elif issue.startswith("⚠️"):
+                score -= 7
+        score = max(score, 0)
+        page_scores.append({
+            "url": page.get("url", ""),
+            "seo_score": score,
+            "issues": issues
+        })
+        page_copy = page.copy()
+        page_copy["issues"] = issues
+        page_copy["solutions"] = solutions
+        detailed_page_data.append(page_copy)
+
+    avg_score = int(round(sum([p["seo_score"] for p in page_scores]) / len(page_scores))) if page_scores else 100
+
+    summary_metrics = {
+        "total_pages_crawled": len(all_page_results),
+        "seo_score": avg_score
+    }
+
+    # Structure expected by write_summary_report
+    return {
+        "domain_info": domain_checks,
+        "summary_metrics": summary_metrics,
+        "detailed_page_data": detailed_page_data,
+        "page_scores": page_scores
+    }
 
 def write_summary_report(data, json_path, md_path):
     if 'timestamp' not in data['domain_info']:
@@ -104,7 +131,13 @@ def write_summary_report(data, json_path, md_path):
     page_scores = []
     for page in detailed_pages:
         issues, _ = analyze_page_issues(page)
-        score = calculate_seo_score(issues)
+        score = 100
+        for issue in issues:
+            if issue.startswith("❌"):
+                score -= 15
+            elif issue.startswith("⚠️"):
+                score -= 7
+        score = max(score, 0)
         page_scores.append({
             "url": page.get("url", ""),
             "seo_score": score,
@@ -143,7 +176,13 @@ def write_summary_report(data, json_path, md_path):
         # Top Actionable Priority
         homepage = data['detailed_page_data'][0] if data['detailed_page_data'] else {}
         issues, solutions = analyze_page_issues(homepage)
-        homepage_score = calculate_seo_score(issues)
+        homepage_score = 100
+        for issue in issues:
+            if issue.startswith("❌"):
+                homepage_score -= 15
+            elif issue.startswith("⚠️"):
+                homepage_score -= 7
+        homepage_score = max(homepage_score, 0)
         f.write("## 💡 Top Actionable Priority\n\n")
         f.write(f"**Homepage SEO Score:** {homepage_score}/100\n")
         if issues:
@@ -158,7 +197,13 @@ def write_summary_report(data, json_path, md_path):
         for idx, page in enumerate(data['detailed_page_data']):
             url = page.get("url", "")
             issues, solutions = analyze_page_issues(page)
-            score = calculate_seo_score(issues)
+            score = 100
+            for issue in issues:
+                if issue.startswith("❌"):
+                    score -= 15
+                elif issue.startswith("⚠️"):
+                    score -= 7
+            score = max(score, 0)
             f.write(f"### Page {idx+1} ({domain_name}): [{url}]({url})\n")
             f.write(f"- **SEO Score:** {score}/100\n")
             f.write(f"- **Title:** {page.get('meta',{}).get('title','[MISSING]')}\n")
