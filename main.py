@@ -128,3 +128,4 @@ if __name__ == "__main__":
         pages = audit_results.get('summary_metrics', {}).get('total_pages_crawled', 'N/A')
         duration = audit_results.get('audit_duration_s', 'N/A')
         print(f"Audit complete in {duration} seconds. Total Pages: {pages}. Reports generated in /reports (files named with _{level})")
+        
