@@ -7,7 +7,7 @@ from urllib.parse import urlparse, urljoin
 from scrapy.crawler import CrawlerProcess
 from scrapy.settings import Settings
 from crawler.spider import SEOSpider
-from utils.report_writer import write_summary_report, calculate_seo_score_full
+from utils.report_writer import write_summary_report, calculate_seo_score
 from checks import (
     ssl_check, robots_sitemap, performance_check 
 )
