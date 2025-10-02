@@ -45,7 +45,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt --upgrade
-          # Fix for ImportError: Downloads the necessary data for textblob
+          # Downloads the necessary data for textblob and textstat 
           python -m textblob.download_corpora
 
       - name: Run SEO Audit 🚀
@@ -64,3 +64,4 @@ jobs:
           path: reports/
           # Keeps the report for 5 days. You can adjust this value.
           retention-days: 5
+          
