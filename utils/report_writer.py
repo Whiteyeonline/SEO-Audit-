@@ -5,7 +5,7 @@ def analyze_page_issues(page):
     issues = []
     solutions = []
 
-    # Title tag
+    # Title tag - Logic is sound: Missing is CRITICAL (❌), Length is WARNING (⚠️)
     title = page.get('meta', {}).get('title', '')
     if not title:
         issues.append("❌ Title tag missing.")
@@ -26,11 +26,11 @@ def analyze_page_issues(page):
         issues.append(f"❌ Page has {h1_count} H1 tags (should be exactly 1).")
         solutions.append("Add one unique H1 tag summarizing page topic.")
 
-    # Content/word count
+    # Content/word count - Consistent advice
     word_count = page.get('content', {}).get('word_count', 0)
     if word_count < 250:
         issues.append(f"⚠️ Thin content (Word Count: {word_count}).")
-        solutions.append("Expand content above 500 words for value and ranking.")
+        solutions.append("Expand content above 300 words for value and ranking.")
 
     # Mobile friendly
     mobile_friendly = page.get('mobile', {}).get('mobile_friendly', False)
@@ -44,10 +44,12 @@ def analyze_page_issues(page):
         issues.append(f"⚠️ {missing_alt} images missing ALT attributes.")
         solutions.append("Add descriptive alt text to all images.")
 
-    # Analytics
-    analytics = page.get('analytics', {}).get('google_analytics_found', False) or \
-                page.get('analytics', {}).get('google_tag_manager_found', False)
-    if not analytics:
+    # Analytics - FIXED: Correctly checks the nested structure and flags only if NOT found
+    analytics_tracking = page.get('analytics', {}).get('tracking_setup', {})
+    ga_found = analytics_tracking.get('google_analytics_found', False)
+    gtm_found = analytics_tracking.get('google_tag_manager_found', False)
+    
+    if not (ga_found or gtm_found):
         issues.append("❌ No Google Analytics or Tag Manager detected.")
         solutions.append("Add Google Analytics or GTM script to your site.")
 
@@ -126,29 +128,9 @@ def write_summary_report(data, json_path, md_path):
     summary = data.get('summary_metrics', {})
     competitor = data['domain_info'].get('competitor_data', {})
 
-    # Calculate per-page SEO scores
-    detailed_pages = data.get('detailed_page_data', [])
-    page_scores = []
-    for page in detailed_pages:
-        issues, _ = analyze_page_issues(page)
-        score = 100
-        for issue in issues:
-            if issue.startswith("❌"):
-                score -= 15
-            elif issue.startswith("⚠️"):
-                score -= 7
-        score = max(score, 0)
-        page_scores.append({
-            "url": page.get("url", ""),
-            "seo_score": score,
-            "issues": issues
-        })
-    # Add page scores to data
-    data['page_scores'] = page_scores
-
-    # Calculate average SEO score for the site
-    avg_score = int(round(sum([p["seo_score"] for p in page_scores]) / len(page_scores))) if page_scores else 100
-    summary['seo_score'] = avg_score
+    # Use existing calculated scores (prevents redundant calculation)
+    avg_score = summary.get('seo_score', 100)
+    page_scores = data.get('page_scores', []) 
 
     # Write JSON report
     with open(json_path, "w", encoding="utf-8") as f:
@@ -165,6 +147,20 @@ def write_summary_report(data, json_path, md_path):
             f.write(f"| {k.replace('_',' ').title()} | {v} |\n")
         f.write("\n---\n")
 
+        # Domain-Level Technical Checks section (FIX: Includes SSL)
+        f.write("## 🔒 Domain-Level Technical Checks\n\n")
+        ssl_status = data['domain_info'].get('ssl', {}).get('valid_ssl', False)
+        robots_status = data['domain_info'].get('robots_sitemap', {}).get('robots.txt', 'N/A')
+        sitemap_status = data['domain_info'].get('robots_sitemap', {}).get('sitemap.xml', 'N/A')
+        load_time = data['domain_info'].get('performance', {}).get('load_time_ms', 'N/A')
+        
+        f.write(f"- **SSL Certificate:** {'✅ Valid HTTPS' if ssl_status else '❌ Missing or Invalid'}\n")
+        f.write(f"- **robots.txt:** {'✅ Found' if 'found' in robots_status else '❌ Not Found'}\n")
+        f.write(f"- **sitemap.xml:** {'✅ Found' if 'found' in sitemap_status else '⚠️ Not Found'}\n")
+        f.write(f"- **Initial Load Time:** {load_time}ms (Target: < 500ms)\n")
+        f.write("\n---\n")
+
+
         # SEO Score section
         f.write(f"## ⭐ SEO Score Summary\n")
         f.write(f"- **Average SEO Score:** {avg_score}/100\n")
@@ -175,14 +171,10 @@ def write_summary_report(data, json_path, md_path):
 
         # Top Actionable Priority
         homepage = data['detailed_page_data'][0] if data['detailed_page_data'] else {}
-        issues, solutions = analyze_page_issues(homepage)
-        homepage_score = 100
-        for issue in issues:
-            if issue.startswith("❌"):
-                homepage_score -= 15
-            elif issue.startswith("⚠️"):
-                homepage_score -= 7
-        homepage_score = max(homepage_score, 0)
+        issues = homepage.get('issues', [])
+        solutions = homepage.get('solutions', [])
+        homepage_score = data['page_scores'][0]['seo_score'] if data['page_scores'] else 100
+        
         f.write("## 💡 Top Actionable Priority\n\n")
         f.write(f"**Homepage SEO Score:** {homepage_score}/100\n")
         if issues:
@@ -196,14 +188,10 @@ def write_summary_report(data, json_path, md_path):
         f.write("# 📝 DETAILED ON-PAGE AUDIT CHECKLIST\n\n")
         for idx, page in enumerate(data['detailed_page_data']):
             url = page.get("url", "")
-            issues, solutions = analyze_page_issues(page)
-            score = 100
-            for issue in issues:
-                if issue.startswith("❌"):
-                    score -= 15
-                elif issue.startswith("⚠️"):
-                    score -= 7
-            score = max(score, 0)
+            issues = page.get('issues', [])
+            solutions = page.get('solutions', [])
+            score = data['page_scores'][idx]['seo_score'] if idx < len(data['page_scores']) else 100
+
             f.write(f"### Page {idx+1} ({domain_name}): [{url}]({url})\n")
             f.write(f"- **SEO Score:** {score}/100\n")
             f.write(f"- **Title:** {page.get('meta',{}).get('title','[MISSING]')}\n")
@@ -245,3 +233,4 @@ def write_summary_report(data, json_path, md_path):
         f.write("- All issues above include a solution you can do yourself, without paid tools.\n")
         f.write("If you want more help fixing issues, contact us!\n")
         f.write(f"\n---\n**Audit ID:** `{timestamp}`\n")
+        
