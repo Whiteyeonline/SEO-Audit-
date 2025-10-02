@@ -73,6 +73,22 @@ def analyze_page_issues(page):
 
     return issues, solutions
 
+def calculate_seo_score(issues):
+    """
+    Assigns a score out of 100.
+    - Each ❌ (critical) issue: -15 points
+    - Each ⚠️ (warning) issue: -7 points
+    - Minimum score: 0
+    - Perfect (no issues): 100
+    """
+    score = 100
+    for issue in issues:
+        if issue.startswith("❌"):
+            score -= 15
+        elif issue.startswith("⚠️"):
+            score -= 7
+    return max(score, 0)
+
 def write_summary_report(data, json_path, md_path):
     if 'timestamp' not in data['domain_info']:
         data['domain_info']['timestamp'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -82,6 +98,24 @@ def write_summary_report(data, json_path, md_path):
     timestamp = data['domain_info'].get('timestamp', 'N/A')
     summary = data.get('summary_metrics', {})
     competitor = data['domain_info'].get('competitor_data', {})
+
+    # Calculate per-page SEO scores
+    detailed_pages = data.get('detailed_page_data', [])
+    page_scores = []
+    for page in detailed_pages:
+        issues, _ = analyze_page_issues(page)
+        score = calculate_seo_score(issues)
+        page_scores.append({
+            "url": page.get("url", ""),
+            "seo_score": score,
+            "issues": issues
+        })
+    # Add page scores to data
+    data['page_scores'] = page_scores
+
+    # Calculate average SEO score for the site
+    avg_score = int(round(sum([p["seo_score"] for p in page_scores]) / len(page_scores))) if page_scores else 100
+    summary['seo_score'] = avg_score
 
     # Write JSON report
     with open(json_path, "w", encoding="utf-8") as f:
@@ -98,10 +132,20 @@ def write_summary_report(data, json_path, md_path):
             f.write(f"| {k.replace('_',' ').title()} | {v} |\n")
         f.write("\n---\n")
 
+        # SEO Score section
+        f.write(f"## ⭐ SEO Score Summary\n")
+        f.write(f"- **Average SEO Score:** {avg_score}/100\n")
+        for p in page_scores:
+            url_display = p["url"] if p["url"] else "Homepage"
+            f.write(f"    - {url_display}: {p['seo_score']}/100\n")
+        f.write("\n---\n")
+
         # Top Actionable Priority
         homepage = data['detailed_page_data'][0] if data['detailed_page_data'] else {}
         issues, solutions = analyze_page_issues(homepage)
+        homepage_score = calculate_seo_score(issues)
         f.write("## 💡 Top Actionable Priority\n\n")
+        f.write(f"**Homepage SEO Score:** {homepage_score}/100\n")
         if issues:
             for i, (issue, solution) in enumerate(zip(issues, solutions), 1):
                 f.write(f"{i}. {issue} Solution: {solution}\n")
@@ -109,11 +153,14 @@ def write_summary_report(data, json_path, md_path):
             f.write("1. ✅ STATUS: No critical issues found. Focus on medium priority items below.\n")
         f.write("\n---\n")
 
-        # Per-page audit: summary, issues, solutions
+        # Per-page audit: summary, issues, solutions, SEO score
         f.write("# 📝 DETAILED ON-PAGE AUDIT CHECKLIST\n\n")
         for idx, page in enumerate(data['detailed_page_data']):
             url = page.get("url", "")
+            issues, solutions = analyze_page_issues(page)
+            score = calculate_seo_score(issues)
             f.write(f"### Page {idx+1} ({domain_name}): [{url}]({url})\n")
+            f.write(f"- **SEO Score:** {score}/100\n")
             f.write(f"- **Title:** {page.get('meta',{}).get('title','[MISSING]')}\n")
             f.write(f"- **Meta Description:** {page.get('meta',{}).get('description','[MISSING]')}\n")
             f.write(f"- **H1 Tags:** {page.get('headings',{}).get('h1',0)}\n")
@@ -126,7 +173,6 @@ def write_summary_report(data, json_path, md_path):
             f.write(f"- **Sample External Domains:** {', '.join(backlinks.get('sample_external_domains',[]))}\n")
             f.write("- **Note:** This audit lists the external domains your site links to. To discover who links to your site (backlinks), use Google Search Console or paid tools.\n")
             f.write("\n#### Issues Found & Solutions\n")
-            issues, solutions = analyze_page_issues(page)
             if issues:
                 for i, (issue, solution) in enumerate(zip(issues, solutions), 1):
                     f.write(f"{i}. {issue} Solution: {solution}\n")
