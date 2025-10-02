@@ -110,9 +110,8 @@ def seo_audit(url, level, scope, competitor_url):
     else:
         print("⚠️ WARNING: Crawl produced an empty or non-existent file.")
     
-
-        final_report_data = calculate_seo_score(all_page_results, domain_checks)
-        final_report_data["audit_duration_s"] = round(time.time() - start_time, 2)
+     final_report_data = calculate_seo_score(all_page_results, domain_checks)
+final_report_data["audit_duration_s"] = round(time.time() - start_time, 2)
     os.makedirs("reports", exist_ok=True)
     
     report_json_path = f"reports/full_site_report_{level}.json"
