@@ -12,7 +12,6 @@ from checks import (
     ssl_check, robots_sitemap, performance_check 
 )
 
-# Load Scrapy settings from local file for granular control
 CUSTOM_SETTINGS = {
     'USER_AGENT': 'ProfessionalSEOAgency (+https://github.com/your-repo)',
     'ROBOTSTXT_OBEY': False,
@@ -30,15 +29,12 @@ CUSTOM_SETTINGS = {
     'REDIRECT_MAX_TIMES': 5,
 }
 
-# --- New Function: Competitor On-Page Analysis ---
 def competitor_analysis(url):
-    """Performs a basic on-page analysis of the competitor's main URL."""
     if not url:
         return {"status": "skipped", "error": "No competitor URL provided."}
     try:
         r = requests.get(url, timeout=10)
         r.raise_for_status()
-        # Note: SEOSpider.run_single_page_checks must be accessible
         temp_results = SEOSpider.run_single_page_checks(url, r.text)
         return {
             "status": "success",
@@ -50,7 +46,6 @@ def competitor_analysis(url):
         }
     except Exception as e:
         return {"status": "failed", "error": f"Competitor check failed: {str(e)}"}
-# --- End Competitor Analysis ---
 
 def seo_audit(url, level, scope, competitor_url):
     start_time = time.time()
@@ -97,7 +92,6 @@ def seo_audit(url, level, scope, competitor_url):
 
     if os.path.exists(crawl_data_path) and os.stat(crawl_data_path).st_size > 0:
         try:
-            # FIX: Correctly read a single JSON array from the file
             with open(crawl_data_path, 'r', encoding='utf-8') as f:
                 all_page_results = json.load(f)
         except json.JSONDecodeError as e:
@@ -106,7 +100,7 @@ def seo_audit(url, level, scope, competitor_url):
     else:
         print("⚠️ WARNING: Crawl produced an empty or non-existent file.")
 
-    # Always define final_report_data after above if/else, not indented
+    # FIXED: Always call calculate_seo_score with two arguments
     final_report_data = calculate_seo_score(all_page_results, domain_checks)
     final_report_data["audit_duration_s"] = round(time.time() - start_time, 2)
     os.makedirs("reports", exist_ok=True)
