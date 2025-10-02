@@ -1,5 +1,5 @@
-from bs4 import BeautifulSoup
 import re
+from bs4 import BeautifulSoup
 
 def run(url, html_content):
     """
@@ -33,5 +33,5 @@ def run(url, html_content):
     return {
         "tracking_setup": tracking,
         "note": "Tracking detection is static (HTML only). Event tracking cannot be verified."
-    }
-  
+                }
+    
