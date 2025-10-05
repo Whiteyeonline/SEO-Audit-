@@ -1,4 +1,5 @@
-name: Professional SEO Audit 
+# .github/workflows/audit.yml
+name: Professional SEO Audit
 
 # Trigger the workflow manually with input fields
 on:
@@ -7,22 +8,23 @@ on:
       audit_url:
         description: 'URL to audit'
         required: true
-        default: 
+        default: 'https://example.com'
       audit_level:
-        description: 'Audit level (basic or standard)'
+        description: 'Audit level (basic, standard, or advanced)'
         required: true
         default: 'standard'
         type: choice
         options:
         - basic
         - standard
+        - advanced # Added Advanced Level
       competitor_url:
-        description: 'Competitor URL for comparison'
+        description: 'Competitor URL for comparison (Optional)'
         required: false
       audit_scope:
         description: 'Crawl scope'
         required: true
-        default: 'only_onpage'
+        default: 'full_site_250_pages' # Updated Default
         type: choice
         options:
         - only_onpage
@@ -35,19 +37,27 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
-
+        
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
-
+          
+      - name: Install system dependencies for Playwright
+        run: |
+          # Install core libraries required by Playwright/Chromium
+          sudo apt-get update
+          sudo apt-get install -y libglib2.0-0 libnss3 libgconf-2-4 libfontconfig1
+          
       - name: Install dependencies and corpora 🛠️
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt --upgrade
+          # Install Playwright browser drivers required by Scrapy-Playwright
+          playwright install --with-deps
           # Downloads the necessary data for textblob and textstat 
           python -m textblob.download_corpora
-
+          
       - name: Run SEO Audit 🚀
         env:
           AUDIT_URL: ${{ github.event.inputs.audit_url }}
@@ -56,12 +66,12 @@ jobs:
           AUDIT_SCOPE: ${{ github.event.inputs.audit_scope }}
         run: |
           python main.py
-
+          
       - name: Upload SEO Audit Reports
         uses: actions/upload-artifact@v4
         with:
           name: seo-audit-reports-${{ github.event.inputs.audit_level }}
           path: reports/
-          # Keeps the report for 5 days. You can adjust this value.
+          # Keeps the report for 5 days.
           retention-days: 5
           
