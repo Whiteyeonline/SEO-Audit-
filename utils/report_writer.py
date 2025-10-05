@@ -1,12 +1,13 @@
-# utils/report_writer.py (Focus on calculate_seo_score)
+# utils/report_writer.py
 
 import json
 from jinja2 import Environment, FileSystemLoader
-# You might need to import os here if your full file uses it
+import datetime # <--- CRITICAL FIX: Add the datetime module import
 
 def calculate_seo_score(report_data):
     """
     Calculates a final SEO score based on penalties applied to check results.
+    Uses safe dictionary access (.get()) to prevent KeyErrors.
     """
     score = 100
     
@@ -20,11 +21,7 @@ def calculate_seo_score(report_data):
     }
     
     # --- Check 1: SSL Check (High Penalty) ---
-    # FIX: Use .get() with a safe default value ({'result': 'Fail'}) if 'ssl_check' is missing 
-    # or if the entire 'basic_checks' block is missing.
     ssl_check_result = report_data.get('basic_checks', {}).get('ssl_check', {})
-    
-    # SAFELY retrieve 'result'. Default to 'Fail' if the key is missing to apply the penalty.
     ssl_status = ssl_check_result.get('result', 'Fail')
     
     if ssl_status != 'Pass':
@@ -52,7 +49,7 @@ def calculate_seo_score(report_data):
         # Penalize for missing Meta Description
         meta_desc = page.get('meta', {}).get('description')
         if not meta_desc:
-            score -= PENALTies['meta_desc_fail_per_page']
+            score -= PENALTIES['meta_desc_fail_per_page']
             
         # Penalize for bad H1 count (assuming 0 or >1 is bad)
         h1_count = page.get('headings', {}).get('h1')
@@ -74,6 +71,7 @@ def write_summary_report(report, json_path, md_path, audit_level):
         
     # Write Markdown report
     env = Environment(loader=FileSystemLoader('reports'))
+    # This line now works: it calls datetime.datetime.now()
     env.globals.update(now=lambda: datetime.datetime.now())
     template = env.get_template('template.md.j2')
 
