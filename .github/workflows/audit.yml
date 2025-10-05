@@ -1,4 +1,4 @@
-# .github/workflows/audit.yml (FINAL & CORRECTED)
+# .github/workflows/audit.yml (FINAL COMPLETE VERSION)
 name: Professional SEO Audit
 
 # Trigger the workflow manually with input fields
@@ -8,11 +8,11 @@ on:
       audit_url:
         description: 'URL to audit'
         required: true
-        default: 
+        default: 'https://example.com' # FIXED: Added default URL
       audit_level:
         description: 'Audit level (basic, standard, or advanced)'
         required: true
-        default:
+        default: 'standard' # FIXED: Added default level
         type: choice
         options:
         - basic
@@ -24,7 +24,7 @@ on:
       audit_scope:
         description: 'Crawl scope'
         required: true
-        default: 
+        default: 'full_site_250_pages' # FIXED: Added default scope
         type: choice
         options:
         - only_onpage
@@ -53,7 +53,6 @@ jobs:
       - name: Install dependencies and corpora 🛠️
         run: |
           python -m pip install --upgrade pip
-          # Ensure all dependencies (scrapy-playwright, Jinja2, etc.) are in requirements.txt
           pip install -r requirements.txt --upgrade
           # Install Playwright browser drivers required by Scrapy-Playwright
           playwright install --with-deps
