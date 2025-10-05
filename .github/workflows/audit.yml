@@ -8,11 +8,11 @@ on:
       audit_url:
         description: 'URL to audit'
         required: true
-        default: 'https://example.com'
+        default: 
       audit_level:
         description: 'Audit level (basic, standard, or advanced)'
         required: true
-        default: 'standard'
+        default:
         type: choice
         options:
         - basic
@@ -24,7 +24,7 @@ on:
       audit_scope:
         description: 'Crawl scope'
         required: true
-        default: 'full_site_250_pages'
+        default: 
         type: choice
         options:
         - only_onpage
