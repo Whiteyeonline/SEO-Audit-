@@ -2,7 +2,7 @@
 
 import json
 from jinja2 import Environment, FileSystemLoader
-import datetime # <--- CRITICAL FIX: Add the datetime module import
+import datetime 
 
 def calculate_seo_score(report_data):
     """
@@ -34,9 +34,9 @@ def calculate_seo_score(report_data):
     if robots_status == 'Fail':
         score -= PENALTIES['robots_fail']
 
-    # --- Check 3: Performance Check (Based on PageSpeed) ---
+    # --- Check 3: Performance Check (Based on Internal Check) ---
     performance_check = report_data.get('performance_check', {})
-    # Safely get the result, default to 'Fail' if the structure is missing
+    # Safely get the result from the desktop score (which now reflects the internal check)
     desktop_result = performance_check.get('desktop_score', {}).get('result', 'Fail')
     
     if desktop_result == 'Fail':
@@ -71,7 +71,6 @@ def write_summary_report(report, json_path, md_path, audit_level):
         
     # Write Markdown report
     env = Environment(loader=FileSystemLoader('reports'))
-    # This line now works: it calls datetime.datetime.now()
     env.globals.update(now=lambda: datetime.datetime.now())
     template = env.get_template('template.md.j2')
 
