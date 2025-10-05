@@ -1,4 +1,4 @@
-# crawler/spider.py
+# crawler/spider.py (FINAL COMPLETE VERSION)
 import scrapy
 from bs4 import BeautifulSoup
 from urllib.parse import urlparse, urljoin
@@ -8,13 +8,14 @@ from checks import (
     url_structure, internal_links, canonical_check,
     content_quality, accessibility_check, mobile_friendly_check,
     backlinks_check,
-    local_seo_check, # Uses the correct imported name
+    local_seo_check, 
     analytics_check
 )
 
 class SEOSpider(scrapy.Spider):
     name = "seo_spider"
     
+    # ... (init method remains unchanged) ...
     def __init__(self, start_urls=None, domain_checks=None, audit_level='standard', crawl_depth=None, *args, **kwargs):
         super(SEOSpider, self).__init__(*args, **kwargs)
         if start_urls is None:
@@ -27,7 +28,6 @@ class SEOSpider(scrapy.Spider):
         self.audit_level = audit_level
         self.max_depth = crawl_depth
         
-        # Define which checks run for a 'basic' audit
         self.basic_checks = [
             'url_structure', 'canonical', 'meta', 'headings', 'content', 'images', 'mobile',
             'local_seo', 'analytics', 'accessibility'
@@ -61,7 +61,8 @@ class SEOSpider(scrapy.Spider):
     def parse(self, response):
         """Processes each page crawled by Scrapy."""
         url = response.url
-        html_content = response.text
+        # Use response.body.decode('utf-8') for reliable content from Scrapy-Playwright
+        html_content = response.body.decode('utf-8') 
         status = response.status
         depth = response.request.meta.get('depth', 0)
         
@@ -83,7 +84,7 @@ class SEOSpider(scrapy.Spider):
         page_checks = SEOSpider.run_single_page_checks(url, html_content)
         
         if self.audit_level == 'basic':
-            filtered_results = {key: page_checks.get(key) for key in self.basic_checks}
+            filtered_results = {key: page_checks.get(key) for key in self.basic_checks if page_checks.get(key) is not None}
             page_results.update(filtered_results)
         else:
             page_results.update(page_checks)
@@ -97,5 +98,5 @@ class SEOSpider(scrapy.Spider):
                     yield response.follow(absolute_url, callback=self.parse)
         
         # 4. Yield the completed page data
-        yield page_results
-        
+        yield page_results # Ensures that the data for the starting page is always saved.
+            
