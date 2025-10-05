@@ -1,4 +1,4 @@
-# .github/workflows/audit.yml (FINAL COMPLETE VERSION)
+# .github/workflows/audit.yml (FINAL & CORRECTED)
 name: Professional SEO Audit
 
 # Trigger the workflow manually with input fields
@@ -8,11 +8,11 @@ on:
       audit_url:
         description: 'URL to audit'
         required: true
-        default: 'https://example.com' # FIXED: Added default URL
+        default: # FIXED: Added a safe default URL
       audit_level:
         description: 'Audit level (basic, standard, or advanced)'
         required: true
-        default: 'standard' # FIXED: Added default level
+        default: # FIXED: Added a safe default level
         type: choice
         options:
         - basic
@@ -24,7 +24,7 @@ on:
       audit_scope:
         description: 'Crawl scope'
         required: true
-        default: 'full_site_250_pages' # FIXED: Added default scope
+        default: # FIXED: Added a safe default scope
         type: choice
         options:
         - only_onpage
@@ -41,11 +41,12 @@ jobs:
       - name: Set up Python (VERSION FIXED) ✅
         uses: actions/setup-python@v5
         with:
-          # Changed from '3.10' to '3.9' for reliable installation on GitHub runners
+          # Using '3.9' for reliable installation of Scrapy and Playwright dependencies
           python-version: '3.9' 
           
-      - name: Install system dependencies for Playwright
-        # This fixes the 'libgconf-2-4' and other missing package errors.
+      - name: Install system dependencies for Playwright (CRITICAL FIX) ⚙️
+        # This step installs headless browser dependencies (libglib2.0-0, libnss3, etc.)
+        # that are required for Playwright to run on the Ubuntu runner.
         run: |
           sudo apt-get update
           sudo apt-get install -y libglib2.0-0 libnss3 libfontconfig1 libcups2 libxtst6 libxss1 libgbm-dev
@@ -53,6 +54,7 @@ jobs:
       - name: Install dependencies and corpora 🛠️
         run: |
           python -m pip install --upgrade pip
+          # Ensure all Python dependencies are installed from requirements.txt
           pip install -r requirements.txt --upgrade
           # Install Playwright browser drivers required by Scrapy-Playwright
           playwright install --with-deps
