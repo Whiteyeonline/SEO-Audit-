@@ -1,8 +1,9 @@
-# checks/performance_check.py (Focusing on the error-prone functions)
+# checks/performance_check.py
 
 import requests
 import json
-# ... (other imports remain unchanged)
+import os # <--- CRITICAL FIX: Add the os module import
+# ... (other potential imports like time, etc., should be here if needed)
 
 # --- Utility Function for Safe Extraction ---
 def extract_score(data):
@@ -39,14 +40,9 @@ def extract_score(data):
 def run_pagespeed_check(url, api_key=None):
     """
     Runs Google PageSpeed Insights check for both mobile and desktop.
-    NOTE: API Key management logic (where to load it from) is omitted here, 
-    assuming it's either None (which usually defaults to a shared limit) or 
-    passed via the environment in a more complete version.
     """
     
-    # NOTE: You MUST set your GOOGLE_PAGESPEED_API_KEY environment variable 
-    # in your GitHub Secrets for this to work reliably.
-    
+    # This line now works because 'os' is imported at the top
     api_key = api_key or os.environ.get('GOOGLE_PAGESPEED_API_KEY')
     base_url = "https://www.googleapis.com/pagespeedonline/v5/runPagespeed"
     
@@ -98,7 +94,4 @@ def run_pagespeed_check(url, api_key=None):
         'desktop_score': extract_score(desktop_data),
         'status': 'Complete'
     }
-
-# The rest of the file (e.g., the run() function, if you have one) is unchanged.
-# Ensure you save the full content back to checks/performance_check.py
-                        
+    
