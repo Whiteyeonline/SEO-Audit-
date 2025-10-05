@@ -1,72 +1,87 @@
-# utils/report_writer.py
+# utils/report_writer.py (Focus on calculate_seo_score)
+
 import json
 from jinja2 import Environment, FileSystemLoader
+# You might need to import os here if your full file uses it
 
-# ... (keep calculate_seo_score function logic here) ...
 def calculate_seo_score(report_data):
-    """Calculate a simple weighted SEO score based on check results."""
+    """
+    Calculates a final SEO score based on penalties applied to check results.
+    """
+    score = 100
     
-    total_score = 100
-    deduction = 0
+    # Define simple penalties
+    PENALTIES = {
+        'ssl_fail': 20,
+        'robots_fail': 10,
+        'performance_fail': 15,
+        'meta_desc_fail_per_page': 1,
+        'h1_fail_per_page': 0.5,
+    }
     
-    # Simple Deduction Logic (adjust weights as needed)
+    # --- Check 1: SSL Check (High Penalty) ---
+    # FIX: Use .get() with a safe default value ({'result': 'Fail'}) if 'ssl_check' is missing 
+    # or if the entire 'basic_checks' block is missing.
+    ssl_check_result = report_data.get('basic_checks', {}).get('ssl_check', {})
     
-    # 1. Basic Checks
-    if report_data['basic_checks']['ssl_check']['result'] != 'Pass':
-        deduction += 10 # Critical
-    if report_data['basic_checks']['robots_sitemap']['result'] != 'Pass':
-        deduction += 5
-        
-    # 2. Performance Check
-    if report_data['performance_check']['mobile_score']['result'] == 'Fail':
-        deduction += 10
-        
-    # 3. Crawled Page Analysis (Average deduction)
-    if 'crawled_pages' in report_data and report_data['crawled_pages']:
-        page_deduction = 0
-        for page in report_data['crawled_pages']:
-            if not page.get('title'): page_deduction += 2
-            if not page.get('meta_description'): page_deduction += 2
+    # SAFELY retrieve 'result'. Default to 'Fail' if the key is missing to apply the penalty.
+    ssl_status = ssl_check_result.get('result', 'Fail')
+    
+    if ssl_status != 'Pass':
+        score -= PENALTIES['ssl_fail']
+
+    # --- Check 2: Robots/Sitemap Check (Medium Penalty) ---
+    robots_check_result = report_data.get('basic_checks', {}).get('robots_sitemap', {})
+    robots_status = robots_check_result.get('status', 'Fail')
+    
+    if robots_status == 'Fail':
+        score -= PENALTIES['robots_fail']
+
+    # --- Check 3: Performance Check (Based on PageSpeed) ---
+    performance_check = report_data.get('performance_check', {})
+    # Safely get the result, default to 'Fail' if the structure is missing
+    desktop_result = performance_check.get('desktop_score', {}).get('result', 'Fail')
+    
+    if desktop_result == 'Fail':
+        score -= PENALTIES['performance_fail']
+
+    # --- Check 4: Aggregation of Crawled Page Issues (Iterative Penalty) ---
+    crawled_pages = report_data.get('crawled_pages', [])
+    
+    for page in crawled_pages:
+        # Penalize for missing Meta Description
+        meta_desc = page.get('meta', {}).get('description')
+        if not meta_desc:
+            score -= PENALTies['meta_desc_fail_per_page']
             
-            # Deduct for Keyword Stuffing warning
-            if page.get('keyword_analysis', {}).get('density_check', {}).get('result') == 'Warning':
-                page_deduction += 1
-                
-        # Average the deduction across all pages (max 30 points from page checks)
-        avg_deduction = (page_deduction / len(report_data['crawled_pages']))
-        deduction += min(avg_deduction, 30) # Capped at 30 points
+        # Penalize for bad H1 count (assuming 0 or >1 is bad)
+        h1_count = page.get('headings', {}).get('h1')
+        if h1_count != 1:
+            score -= PENALTIES['h1_fail_per_page']
+
+    # --- Final Score ---
+    final_score = max(0, score)
+    return final_score
+
+
+def write_summary_report(report, json_path, md_path, audit_level):
+    """
+    Writes the final report data to both JSON and Markdown files.
+    """
+    # Write JSON report
+    with open(json_path, 'w', encoding='utf-8') as f:
+        json.dump(report, f, indent=4)
         
-    final_score = max(0, total_score - int(deduction))
-    return f"{final_score}/100"
+    # Write Markdown report
+    env = Environment(loader=FileSystemLoader('reports'))
+    env.globals.update(now=lambda: datetime.datetime.now())
+    template = env.get_template('template.md.j2')
 
-
-def write_summary_report(data, json_path, md_path, audit_level):
-    """Writes the structured data to both JSON and a consistent Markdown report using Jinja2."""
-
-    # 1. Write JSON file (The Single Source of Truth)
-    with open(json_path, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2)
-
-    # 2. Setup Jinja2 Environment
-    try:
-        # Load environment with current directory as the loader (assuming 'reports' is a sibling to utils)
-        # You may need to adjust the path if your 'reports' directory is elsewhere.
-        file_loader = FileSystemLoader('reports') 
-        env = Environment(loader=file_loader)
-        # Add the 'now' function to the template environment for date
-        from datetime import datetime
-        env.globals.update(now=datetime.now)
-        
-        template = env.get_template('template.md.j2')
-    except Exception as e:
-        print(f"Error loading Jinja2 template: {e}. Cannot generate Markdown report.")
-        return
-
-    # 3. Render the Markdown report from the JSON data
-    # The template directly accesses fields from the `data` dictionary (the JSON content)
-    output = template.render(report=data, audit_level=audit_level)
-
-    # 4. Write the final Markdown report
-    with open(md_path, "w", encoding="utf-8") as f:
+    # Render template with report data
+    output = template.render(report=report)
+    
+    with open(md_path, 'w', encoding='utf-8') as f:
         f.write(output)
-        
+
+    print(f"Report written to {json_path} and {md_path}")
+    
