@@ -46,7 +46,7 @@ class SEOSpider(scrapy.Spider):
             "images": image_check.run(url, html_content),
             "accessibility": accessibility_check.run(url, html_content),
             "mobile": mobile_friendly_check.run(url, html_content),
-            "local_seo": local_seo_check.run_checks(url, html_content), # Note: uses .run_checks function
+            "local_seo": local_seo_check.run(url, html_content), 
             "analytics": analytics_check.run(url, html_content),
             
             # Heavy/Standard-only checks:
