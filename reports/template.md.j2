@@ -23,8 +23,16 @@
 
 This section summarizes critical failures across all **{{ crawled_pages | length }}** audited pages.
 
-{% set issue_list = [] %}
-{% set total_issues = 0 %}
+{# CRITICAL FIX: Use namespace for mutable counters inside the loop #}
+{% set ns = namespace(
+    title_fail_count=0, 
+    desc_fail_count=0, 
+    h1_fail_count=0, 
+    thin_content_count=0, 
+    missing_alt_total=0,
+    total_issues=0
+) %}
+
 {% set issue_data = {
     'title_fail': {'count': 0, 'priority': 'High', 'description': 'Pages with missing, too short, or too long Title Tags (Optimal: 30-60 chars).', 'solution': 'Review and rewrite page titles to accurately reflect content and include primary keywords.'},
     'desc_fail': {'count': 0, 'priority': 'High', 'description': 'Pages missing a Meta Description (Essential for click-through rate in SERPs).', 'solution': 'Add unique, compelling meta descriptions (120-158 characters) that encourage users to click.'},
@@ -34,21 +42,29 @@ This section summarizes critical failures across all **{{ crawled_pages | length
 } %}
 
 {% for page in crawled_pages %}
-    {% set issue_data['missing_alt_total'].count = issue_data['missing_alt_total'].count + page.get('images', {}).get('missing_alt', 0) %}
+    {# Accumulate counts in the namespace object #}
+    {% set ns.missing_alt_total = ns.missing_alt_total + page.get('images', {}).get('missing_alt', 0) %}
     
     {% if page.get('meta', {}).get('title')|length < 30 or page.get('meta', {}).get('title')|length > 65 %}
-        {% set issue_data['title_fail'].count = issue_data['title_fail'].count + 1 %}
+        {% set ns.title_fail_count = ns.title_fail_count + 1 %}
     {% endif %}
     {% if not page.get('meta', {}).get('description') %}
-        {% set issue_data['desc_fail'].count = issue_data['desc_fail'].count + 1 %}
+        {% set ns.desc_fail_count = ns.desc_fail_count + 1 %}
     {% endif %}
     {% if page.get('headings', {}).get('h1', 0) != 1 %}
-        {% set issue_data['h1_fail'].count = issue_data['h1_fail'].count + 1 %}
+        {% set ns.h1_fail_count = ns.h1_fail_count + 1 %}
     {% endif %}
     {% if page.get('content', {}).get('word_count', 0) < 200 %}
-        {% set issue_data['thin_content_count'].count = issue_data['thin_content_count'].count + 1 %}
+        {% set ns.thin_content_count = ns.thin_content_count + 1 %}
     {% endif %}
 {% endfor %}
+
+{# After the loop, update the original issue_data dictionary for output #}
+{% set _ = issue_data.title_fail.update({'count': ns.title_fail_count}) %}
+{% set _ = issue_data.desc_fail.update({'count': ns.desc_fail_count}) %}
+{% set _ = issue_data.h1_fail.update({'count': ns.h1_fail_count}) %}
+{% set _ = issue_data.thin_content_count.update({'count': ns.thin_content_count}) %}
+{% set _ = issue_data.missing_alt_total.update({'count': ns.missing_alt_total}) %}
 
 ### Top Site-Wide Issues Found
 
@@ -57,10 +73,10 @@ This section summarizes critical failures across all **{{ crawled_pages | length
 {% for key, item in issue_data.items() %}
     {% if item.count > 0 %}
     | **{{ item.description | split('(')[0] | trim }}** | **{{ item.count }}** | {{ item.priority }} |
-        {% set total_issues = total_issues + item.count %}
+        {% set ns.total_issues = ns.total_issues + item.count %}
     {% endif %}
 {% endfor %}
-| **Total Aggregated Issues** | **{{ total_issues }}** | |
+| **Total Aggregated Issues** | **{{ ns.total_issues }}** | |
 
 ---
 
