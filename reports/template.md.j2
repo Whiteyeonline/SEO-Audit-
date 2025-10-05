@@ -1,0 +1,75 @@
+{# reports/template.md.j2 #}
+# SEO Audit Report for {{ report.audit_details.target_url }}
+
+**Audit Date:** {{ now().strftime('%Y-%m-%d %H:%M:%S') }}
+**Audit Level:** {{ report.audit_details.audit_level | capitalize }}
+**Crawl Scope:** {{ report.audit_details.audit_scope | replace('_', ' ') | capitalize }}
+**Final SEO Score:** **{{ report.final_score }}**
+
+---
+
+## 1. Executive Summary
+
+This report provides a comprehensive SEO audit of the target website, focusing on **modern site compatibility (JavaScript rendering)** and **reinforced analysis**. The audit level was set to **{{ audit_level | capitalize }}**.
+
+{% if report.audit_details.competitor_url %}
+Competitor URL **{{ report.audit_details.competitor_url }}** was provided for a basic comparison.
+{% endif %}
+
+---
+
+## 2. Core Technical Health & Performance
+
+| Check | Result | Details |
+| :--- | :--- | :--- |
+| **SSL/HTTPS** | **{{ report.basic_checks.ssl_check.result }}** | {{ report.basic_checks.ssl_check.message }} |
+| **Robots/Sitemap** | **{{ report.basic_checks.robots_sitemap.result }}** | {{ report.basic_checks.robots_sitemap.message }} |
+
+### Free PageSpeed (Lighthouse) Scores
+
+| Strategy | Score | Status | Message |
+| :--- | :--- | :--- | :--- |
+| **Mobile** | {{ report.performance_check.mobile_score.score }} | **{{ report.performance_check.mobile_score.result }}** | {{ report.performance_check.mobile_score.message }} |
+| **Desktop** | {{ report.performance_check.desktop_score.score }} | **{{ report.performance_check.desktop_score.result }}** | {{ report.performance_check.desktop_score.message }} |
+
+---
+
+## 3. Crawled Page Analysis (Reinforced On-Page)
+
+Total Pages Crawled: **{{ report.crawled_pages | length }}**
+
+{% for page in report.crawled_pages %}
+### Page: `{{ page.url }}` (Status: {{ page.response_status }})
+
+| Metric | Status | Details |
+| :--- | :--- | :--- |
+| **Title Tag** | {% if page.title %}✅ Pass{% else %}❌ Fail{% endif %} | {{ page.title or "❌ MISSING Title Tag" }} |
+| **Meta Description** | {% if page.meta_description %}✅ Pass{% else %}❌ Fail{% endif %} | {{ page.meta_description or "❌ MISSING Meta Description" }} |
+
+#### Keyword Reinforcement Checks
+
+{% if page.keyword_analysis.top_keywords %}
+Primary Keyword: **{{ page.keyword_analysis.top_keywords[0].word | capitalize }}** (Count: {{ page.keyword_analysis.top_keywords[0].count }})
+{% else %}
+Primary Keyword: **N/A** (No content found)
+{% endif %}
+
+| Check | Status | Details |
+| :--- | :--- | :--- |
+| **Density Check** | **{{ page.keyword_analysis.density_check.result }}** | {{ page.keyword_analysis.density_check.message }} |
+| **Placement Check** | **{{ page.keyword_analysis.placement_check.result }}** | {{ page.keyword_analysis.placement_check.message }} |
+{% if page.keyword_analysis.readability_check %}
+| **Readability Score** | **{{ page.keyword_analysis.readability_check.result }}** | {{ page.keyword_analysis.readability_check.message }} |
+{% endif %}
+
+#### Local SEO & Schema Checks
+
+{% if 'nap_consistency' in page.local_seo_analysis %}
+| **NAP Consistency** | **{{ page.local_seo_analysis.nap_consistency.result }}** | {{ page.local_seo_analysis.nap_consistency.message }} |
+{% endif %}
+{% if 'local_schema' in page.local_seo_analysis %}
+| **Local Schema** | **{{ page.local_seo_analysis.local_schema.result }}** | {{ page.local_seo_analysis.local_schema.message }} |
+{% endif %}
+
+---
+{% endfor %}
