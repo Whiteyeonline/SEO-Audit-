@@ -1,9 +1,9 @@
 {# reports/template.md.j2 - FINAL CORRECTED VERSION #}
-{% set audit_details = report.audit_details %} {# CORRECTED #}
-{% set crawled_pages = report.crawled_pages %} {# CORRECTED #}
+{% set audit_details = report.audit_details %} {# FIXED: Matches key from main.py #}
+{% set final_score = report.final_score %}     {# FIXED: Matches key from main.py #}
+{% set crawled_pages = report.crawled_pages %} {# FIXED: Matches key from main.py #}
 {% set audit_level = audit_details.audit_level %}
 {% set audit_scope = audit_details.audit_scope %}
-{% set final_score = report.final_score %}     {# CORRECTED #}
 
 # 👑 SEO AUDIT REPORT for {{ audit_details.target_url }}
 
@@ -12,9 +12,124 @@
 
 ---
 
-{# JINJA2 AGGREGATION BLOCKS: ... #}
-{# The rest of the aggregation logic is preserved from your last upload #}
-{# ... #}
+{# JINJA2 AGGREGATION BLOCKS: Calculate Site-Wide Issue Counts from detailed_page_data #}
+{% set total_issue_count = 0 %}
+{% set title_fail_count = 0 %}
+{% set desc_fail_count = 0 %}
+{% set h1_fail_count = 0 %}
+{% set thin_content_count = 0 %}
+{% set missing_alt_total = 0 %}
+{% set broken_link_total = 0 %}
+
+{% for page in crawled_pages %}
+    {# The aggregation logic must be updated to match the final structure of crawled_pages #}
+    {# Using estimated structure from your last upload: #}
+    {% set missing_alt_total = missing_alt_total + page.get('images', {}).get('missing_alt', 0) %}
+
+    {% if page.get('meta', {}).get('title')|length < 10 or page.get('meta', {}).get('title')|length > 60 %}
+        {% set title_fail_count = title_fail_count + 1 %}
+    {% endif %}
+    {% if not page.get('meta', {}).get('description') %}
+        {% set desc_fail_count = desc_fail_count + 1 %}
+    {% endif %}
+    {% if page.get('headings', {}).get('h1', 0) != 1 %}
+        {% set h1_fail_count = h1_fail_count + 1 %}
+    {% endif %}
+    {% if page.get('content', {}).get('word_count', 0) < 200 %}
+        {% set thin_content_count = thin_content_count + 1 %}
+    {% endif %}
+    {% if page.get('links', {}).get('broken') %}
+        {% set broken_link_total = broken_link_total + page.get('links', {}).get('broken')|length %}
+    {% endif %}
+
+    {% set total_issue_count = total_issue_count + 1 %}
+{% endfor %}
 
 ## 1. Executive Summary and Audit Scope
-{# ... (rest of the template is unchanged, using the new variable names) ... #}
+
+This report provides a comprehensive SEO audit, with a focus on **technical health** and **on-page optimization**.
+
+### 🌐 Audit Details
+
+| Metric | Value | Details |
+| :--- | :--- | :--- |
+| **Audit Level** | **{{ audit_level | capitalize }}** | The {{ audit_level }} check includes {{ 'basic metadata and core health' if audit_level == 'basic' else 'full on-page analysis including content quality'}}. |
+| **Crawl Scope** | **{{ audit_scope | replace('_', ' ') | capitalize }}** | {% if audit_scope == 'only_onpage' %}Only the homepage was checked.{% elif audit_scope == 'onpage_and_index_pages' %}The homepage and index pages were checked (limited to 25 pages).{% else %}A wide-scale crawl of the site up to 250 pages.{% endif %} |
+| **Total Pages Crawled** | **{{ crawled_pages | length }}** | The detailed report contains findings for this many pages. |
+
+### 🚨 Site-Wide Issue Overview
+
+This table aggregates critical issues found across all **{{ crawled_pages | length }}** crawled pages.
+
+| Issue Type | Total Count | Solution Priority |
+| :--- | :--- | :--- |
+| **Average SEO Score** | **{{ final_score }}** | Highest |
+| **Pages with Title Issues** | **{{ title_fail_count }}** pages | High |
+| **Pages Missing Meta Descriptions** | **{{ desc_fail_count }}** pages | High |
+| **Pages with H1 Issues (0 or >1)** | **{{ h1_fail_count }}** pages | High |
+| **Pages with Thin Content (< 200 words)** | **{{ thin_content_count }}** pages | Medium |
+{% if broken_link_total > 0 %}
+| **Total Broken Links** | **{{ broken_link_total }}** links | Medium |
+{% endif %}
+| **Total Images Missing ALT Text** | **{{ missing_alt_total }}** images | Low |
+
+---
+
+## 2. Core Technical Health & Performance
+
+| Check | Status | Details |
+| :--- | :--- | :--- |
+| **SSL/HTTPS** | **{{ '✅ Valid HTTPS' if report.basic_checks.ssl_check.valid_ssl else '❌ Missing or Invalid' }}** | {{ report.basic_checks.ssl_check.error or "Verified by the check." }} |
+| **Robots/Sitemap** | **{{ '✅ Found' if 'found' in report.basic_checks.robots_sitemap['robots.txt'] else '❌ Not Found' }}** | Robots status: {{ report.basic_checks.robots_sitemap['robots.txt'] }}; Sitemap status: {{ report.basic_checks.robots_sitemap['sitemap.xml'] }}. |
+| **Mobile Score** | **{{ report.performance_check.mobile_score.score }}/100** | Lighthouse Mobile Performance Score. |
+| **Desktop Score** | **{{ report.performance_check.desktop_score.score }}/100** | Lighthouse Desktop Performance Score. |
+
+{% if report.competitor_analysis.status == "success" %}
+### 📈 Basic Competitor Comparison
+| Metric | Your Site (Homepage) | Competitor Site ({{ report.competitor_analysis.url }}) |
+| :--- | :--- | :--- |
+| **Title Length** | {{ crawled_pages[0].meta.title|length }} | {{ report.competitor_analysis.title_length }} |
+| **H1 Count** | {{ crawled_pages[0].headings.h1 }} | {{ report.competitor_analysis.h1_count }} |
+| **Word Count** | {{ crawled_pages[0].content.word_count }} | {{ report.competitor_analysis.word_count }} |
+{% endif %}
+
+---
+
+## 3. Detailed On-Page Audit Checklist
+
+{% for page in crawled_pages %}
+### Page {{ loop.index }}: `{{ page.url }}` (Status: {{ page.status_code }})
+
+| Core Metric | Value | Issue/Status |
+| :--- | :--- | :--- |
+| **Title Tag** | {{ page.meta.title or "❌ MISSING" }} | **Length:** {{ page.meta.title|length if page.meta.title else 'N/A' }} |
+| **Meta Description** | {{ page.meta.description or "❌ MISSING" }} | **Length:** {{ page.meta.description|length if page.meta.description else 'N/A' }} |
+| **H1 Count** | {{ page.headings.h1 }} | Must be exactly 1. |
+| **Word Count** | {{ page.content.word_count }} | |
+| **Canonical URL** | {{ page.canonical.canonical_url or 'N/A' }} | **Match:** {{ '✅' if page.canonical.match else '❌' }} |
+
+#### 🚧 Actionable Issues Found (Keyword & Local SEO)
+
+{% set keyword_density = page.keywords.density_check %}
+{% set local_nap = page.local_seo.nap_consistency %}
+{% set local_schema = page.local_seo.local_schema %}
+
+- **Keyword Density:** ({{ keyword_density.result }}) {{ keyword_density.message }}
+- **Keyword Placement:** ({{ page.keywords.placement_check.result }}) {{ page.keywords.placement_check.message }}
+- **Local NAP Consistency:** ({{ local_nap.result }}) {{ local_nap.message }}
+- **Local Schema Markup:** ({{ local_schema.result }}) {{ local_schema.message }}
+
+---
+{% endfor %}
+
+## 4. Final Disclaimer
+
+This audit covers **technical** and **on-page** SEO using a proprietary, limited-depth crawler. This tool is designed to provide actionable solutions based on industry best practices.
+
+**Data NOT Included in This Report:**
+* **Real-time Backlink Analysis** (requires premium APIs like Ahrefs/Moz).
+* Keyword Rankings, Organic Traffic, or Search Console data.
+* Guaranteed speed metrics (uses the PageSpeed API for Lighthouse scores).
+
+**Report Generated By:** Automated Zero-Cost SEO Audit Tool
+**Audit ID:** `{{ audit_details.timestamp }}`
