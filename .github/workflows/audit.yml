@@ -8,7 +8,7 @@ on:
       audit_url:
         description: 'URL to audit'
         required: true
-        default: 'https://example.com'
+        default: 
       audit_level:
         description: 'Audit level (basic, standard, or advanced)'
         required: true
@@ -24,7 +24,7 @@ on:
       audit_scope:
         description: 'Crawl scope'
         required: true
-        default: 'full_site_250_pages' # Corrected default scope
+        default: # Corrected default scope
         type: choice
         options:
         - only_onpage
