@@ -10,7 +10,7 @@ from checks import (
     robots_sitemap, 
     performance_check,
     keyword_analysis,  # NEW: For advanced keyword checks
-    local_seo,         # NEW: For NAP and Schema checks
+    local_seo_check,   # CORRECTED: Must match local_seo_check.py file name
 )
 
 # --- NEW: Playwright Settings for JS/CSS Rendering ---
@@ -44,11 +44,8 @@ CUSTOM_SETTINGS = {
     # -----------------------------------------------
 }
 
-# NOTE: The competitor_analysis function is kept as simple HTTP for speed.
-# If the competitor site is a dynamic JS site, this function needs a separate 
-# Scrapy-Playwright spider instance to get the rendered content.
 def competitor_analysis(url):
-    # ... (Keep existing simple competitor check or refactor as necessary)
+    # This remains a placeholder/skipped analysis
     return {"status": "skipped", "error": "Competitor analysis not fully implemented for JS rendering in main.py."}
 
 
@@ -63,8 +60,8 @@ def run_audit(target_url, audit_level, competitor_url, audit_scope):
     }
 
     report['basic_checks'] = {
-        'ssl_check': ssl_check.check(target_url),
-        'robots_sitemap': robots_sitemap.check(target_url),
+        'ssl_check': ssl_check.run(target_url), # Corrected: uses .run()
+        'robots_sitemap': robots_sitemap.run(target_url), # Corrected: uses .run()
     }
 
     # 2. Run crawl (Scrapy with Playwright)
@@ -128,4 +125,3 @@ if __name__ == '__main__':
         print("Error: AUDIT_URL environment variable is not set.")
     else:
         run_audit(audit_url, audit_level, competitor_url, audit_scope)
-                     
