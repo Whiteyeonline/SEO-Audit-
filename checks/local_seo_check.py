@@ -1,39 +1,68 @@
-from bs4 import BeautifulSoup
+# checks/local_seo.py
 import re
+import json
 
-def run(url, html_content):
-    """
-    Performs basic Local SEO checks: NAP consistency and GMB integration proxy.
-    """
-    soup = BeautifulSoup(html_content, "lxml")
-    
-    # 1. NAP (Name, Address, Phone) Proxy Detection
-    # Look for common patterns. This is a simple proxy, not a full NAP validator.
-    nap_data = {
-        "phone_format_found": False,
-        "address_keywords_found": False,
-        "gmb_link_found": False,
-    }
+def extract_schema(response):
+    """Extracts JSON-LD schema from the response."""
+    schemas = []
+    for script in response.css('script[type="application/ld+json"]::text').getall():
+        try:
+            schemas.append(json.loads(script))
+        except json.JSONDecodeError:
+            pass
+    return schemas
 
-    # Phone Number Pattern (Basic: at least 7 digits, common separators)
-    # Note: Using content_quality.py's text to search for general text info
-    text = soup.get_text(separator=' ', strip=True)
-    if re.search(r'\(\d{3}\)\s*\d{3}-\d{4}|\d{3}\s*\d{3}\s*\d{4}|\d{7,10}', text):
-        nap_data["phone_format_found"] = True
-    
-    # Address Keywords (P.O. boxes, Street, City, State, Zip)
-    address_keywords = r'street|avenue|road|st\b|ave\b|rd\b|city|state|zip|post\s*code|p\.o\.\s*box'
-    if re.search(address_keywords, text, re.IGNORECASE):
-        nap_data["address_keywords_found"] = True
-
-    # 2. Google My Business (GMB) Integration Proxy
-    # Look for Google Maps iframe or link
-    if soup.find("iframe", src=re.compile(r'maps\.google\.com|google\.com/maps')):
-        nap_data["gmb_link_found"] = True
+def extract_nap(content):
+    """Basic extraction of NAP indicators."""
+    # Simple regex for phone number detection (common US/International format)
+    phone_match = re.search(r'\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}', content)
+    # Simple check for common address indicators
+    address_match = re.search(r'\d+ .*?(street|avenue|road|st|ave|rd|blvd|suite|unit)', content, re.IGNORECASE)
     
     return {
-        "status": "pass",
-        "nap_found": nap_data,
-        "note": "Local SEO check is a simple proxy for NAP format and GMB map integration."
-  }
-  
+        'address_found': bool(address_match),
+        'phone_found': bool(phone_match),
+    }
+
+def run_checks(response, content, level):
+    """Runs local SEO checks."""
+    
+    results = {}
+    
+    # 1. NAP Consistency Check (Standard/Advanced)
+    if level in ['standard', 'advanced']:
+        nap_data = extract_nap(content)
+        
+        nap_result = 'Pass'
+        nap_message = "Basic NAP markers (Address and Phone) appear to be present on the page."
+        if not nap_data['address_found'] and not nap_data['phone_found']:
+            nap_result = 'Fail'
+            nap_message = "❌ Critical: No clear Address or Phone number found on the page."
+        elif not nap_data['address_found'] or not nap_data['phone_found']:
+            nap_result = 'Warning'
+            nap_message = "Partial NAP: Either Address or Phone number is missing. Ensure NAP is consistent."
+            
+        results['nap_consistency'] = {'result': nap_result, 'message': nap_message}
+        
+    # 2. Local Schema Markup Check (Advanced Level)
+    if level == 'advanced':
+        schemas = extract_schema(response)
+        local_schema_found = False
+        
+        for schema in schemas:
+            types = [s.get('@type') for s in (schema if isinstance(schema, list) else [schema])]
+                
+            if any(t in ['LocalBusiness', 'Organization', 'Restaurant', 'Service'] for t in types):
+                local_schema_found = True
+                break
+                
+        schema_result = 'Pass'
+        schema_message = "LocalBusiness, Organization, or relevant local schema markup found."
+        if not local_schema_found:
+            schema_result = 'Warning'
+            schema_message = "No relevant Local/Organization Schema Markup (JSON-LD) found. Recommended for Local SEO visibility."
+            
+        results['local_schema'] = {'result': schema_result, 'message': schema_message}
+        
+    return results
+        
