@@ -1,97 +1,58 @@
-# checks/performance_check.py
+# checks/performance_check.py (INTERNAL CHECK ONLY)
 
 import requests
-import json
-import os # <--- CRITICAL FIX: Add the os module import
-# ... (other potential imports like time, etc., should be here if needed)
+import time
+import os
+import json # Kept for consistency, though not strictly needed for this simple check
 
-# --- Utility Function for Safe Extraction ---
+# --- Utility Function for Safe Extraction (Now unused, but kept simple for future) ---
 def extract_score(data):
-    """Safely extracts performance score or handles API errors."""
-    
-    # CRITICAL FIX: Check if 'data' is a dictionary before using .get()
-    if not isinstance(data, dict):
-        # If it's not a dict, it's likely a raw string error message or None
-        # Safely return a failure status
-        return {'result': 'Fail', 'score': 0, 'message': 'API did not return valid JSON response.'}
-
-    # Check for a specific API error structure
-    if 'error' in data:
-        return {'result': 'Fail', 'score': 0, 'message': data['error'].get('message', 'API request failed with unhandled error.')}
-
-    # Extract performance metrics
-    try:
-        score_value = int(data
-            .get('lighthouseResult', {})
-            .get('categories', {})
-            .get('performance', {})
-            .get('score', 0) * 100) # Score is typically 0 to 1, convert to 0-100
-            
-        message = f"Score: {score_value}. See detailed Lighthouse report for metrics."
-        result = 'Pass' if score_value >= 90 else ('Warning' if score_value >= 50 else 'Fail')
-        
-        return {'result': result, 'score': score_value, 'message': message}
-    
-    except Exception as e:
-        return {'result': 'Fail', 'score': 0, 'message': f"Data extraction error: {e}"}
-
+    """Placeholder function for a more complex check."""
+    return data
 
 # --- Main Check Function ---
-def run_pagespeed_check(url, api_key=None):
+def run_pagespeed_check(url):
     """
-    Runs Google PageSpeed Insights check for both mobile and desktop.
+    Replaced PageSpeed API call with a free, internal Server Response Time check.
     """
     
-    # This line now works because 'os' is imported at the top
-    api_key = api_key or os.environ.get('GOOGLE_PAGESPEED_API_KEY')
-    base_url = "https://www.googleapis.com/pagespeedonline/v5/runPagespeed"
-    
-    # 1. Mobile Check
-    mobile_params = {
-        'url': url,
-        'strategy': 'mobile',
-        'locale': 'en_US',
-        'key': api_key
-    }
-    
+    response_time = 0.0
+    # Use standard requests, no Playwright needed for this check
     try:
-        mobile_response = requests.get(base_url, params=mobile_params, timeout=20)
-        # Use .json() to parse the response, but handle the case where it might fail
-        try:
-            mobile_data = mobile_response.json()
-        except json.JSONDecodeError:
-            # If JSON decoding fails, the response content is likely the raw error string
-            mobile_data = mobile_response.text 
+        start_time = time.time()
+        
+        # Make a HEAD request for speed, or GET request for full test
+        response = requests.get(url, timeout=10) 
+        
+        end_time = time.time()
+        response_time = round((end_time - start_time) * 1000, 2) # Time in milliseconds
+        
+        if response_time < 500:
+            result = 'Pass'
+            message = f"Excellent: Response time is {response_time}ms."
+        elif response_time < 1500:
+            result = 'Warning'
+            message = f"Acceptable: Response time is {response_time}ms. Needs optimization."
+        else:
+            result = 'Fail'
+            message = f"Poor: Response time is {response_time}ms. High priority to optimize."
+            
+        status = response.status_code
             
     except requests.exceptions.RequestException as e:
-        mobile_data = {'error': {'message': f"Request failed: {e}"}}
+        status = 500
+        result = 'Fail'
+        message = f"Connection error or timeout: {e}"
 
-
-    # 2. Desktop Check
-    desktop_params = {
-        'url': url,
-        'strategy': 'desktop',
-        'locale': 'en_US',
-        'key': api_key
-    }
-    
-    try:
-        desktop_response = requests.get(base_url, params=desktop_params, timeout=20)
-        try:
-            desktop_data = desktop_response.json()
-        except json.JSONDecodeError:
-            desktop_data = desktop_response.text
-            
-    except requests.exceptions.RequestException as e:
-        desktop_data = {'error': {'message': f"Request failed: {e}"}}
-
-
-    # 3. Compile Results
+    # Return structure matching the old API format for report consistency
     return {
-        'check_name': 'Performance Check (PageSpeed Insights)',
+        'check_name': 'Server Response Time (Internal Check)',
         'target_url': url,
-        'mobile_score': extract_score(mobile_data),
-        'desktop_score': extract_score(desktop_data),
+        # We use the same keys but provide internal data
+        'mobile_score': {'result': result, 'score': max(0, 100 - int(response_time/50)), 'message': message}, 
+        'desktop_score': {'result': result, 'score': max(0, 100 - int(response_time/50)), 'message': message},
+        'response_time_ms': response_time,
+        'http_status': status,
         'status': 'Complete'
     }
     
