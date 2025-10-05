@@ -1,4 +1,4 @@
-{# reports/template.md.j2 #}
+{# reports/template.md.j2 - FINAL VERSION #}
 # SEO Audit Report for {{ report.audit_details.target_url }}
 
 **Audit Date:** {{ now().strftime('%Y-%m-%d %H:%M:%S') }}
@@ -8,9 +8,52 @@
 
 ---
 
-## 1. Executive Summary
+{# JINJA2 AGGREGATION BLOCKS: Calculate Site-Wide Issue Counts #}
+{% set title_fail_count = 0 %}
+{% set desc_fail_count = 0 %}
+{% set broken_link_count = 0 %}
+{% set missing_alt_count = 0 %}
+{% for page in report.crawled_pages %}
+    {# Count pages with missing title/desc #}
+    {% if not page.title %}{% set title_fail_count = title_fail_count + 1 %}{% endif %}
+    {% if not page.meta_description %}{% set desc_fail_count = desc_fail_count + 1 %}{% endif %}
 
-This report provides a comprehensive SEO audit of the target website, focusing on **modern site compatibility (JavaScript rendering)** and **reinforced analysis**. The audit level was set to **{{ audit_level | capitalize }}**.
+    {# Count broken links (only available if links check was run) #}
+    {% if 'links' in page and page.links and page.links.broken %}
+        {% set broken_link_count = broken_link_count + page.links.broken|length %}
+    {% endif %}
+
+    {# Count total missing alt text (assuming images check is included in the page structure) #}
+    {% if page.images and page.images.missing_alt %}
+        {% set missing_alt_count = missing_alt_count + page.images.missing_alt %}
+    {% endif %}
+{% endfor %}
+
+## 1. Executive Summary and Audit Scope
+
+This report provides a comprehensive SEO audit of the target website, focusing on **modern site compatibility (JavaScript rendering)** and **reinforced analysis**. The audit was conducted at the **{{ audit_level | capitalize }}** level.
+
+### 🌐 Audit Scope
+
+| Metric | Details |
+| :--- | :--- |
+| **Audit Type** | **{{ report.audit_details.audit_level | capitalize }}** ({% if audit_level == 'basic' %}Standard HTML checks only.{% elif audit_level == 'standard' %}Includes Performance and Keyword Analysis.{% else %}Includes Local SEO and Readability.{% endif %}) |
+| **Crawl Scope** | **{{ report.audit_details.audit_scope | replace('_', ' ') | capitalize }}** ({% if report.audit_details.audit_scope == 'only_onpage' %}Only the homepage was crawled.{% elif report.audit_details.audit_scope == 'onpage_and_index_pages' %}The homepage and the next level of internal pages were crawled (limited depth/page count).{% else %}A wide-scale crawl of the site up to 250 pages.{% endif %}) |
+| **Total Pages Crawled** | **{{ report.crawled_pages | length }}** |
+
+### 🚨 Site-Wide Issue Overview
+
+This table aggregates critical issues found across all **{{ report.crawled_pages | length }}** crawled pages.
+
+| Issue Type | Total Count | Priority |
+| :--- | :--- | :--- |
+| **Average SEO Score** | **{{ report.final_score }}** | Highest |
+| **Missing Title Tags** | **{{ title_fail_count }}** pages | High |
+| **Missing Meta Descriptions** | **{{ desc_fail_count }}** pages | High |
+{% if broken_link_count > 0 and audit_level != 'basic' %}
+| **Broken External Links** | **{{ broken_link_count }}** links | Medium |
+{% endif %}
+| **Images Missing ALT Text** | **{{ missing_alt_count }}** images | Low |
 
 {% if report.audit_details.competitor_url %}
 Competitor URL **{{ report.audit_details.competitor_url }}** was provided for a basic comparison.
@@ -25,40 +68,42 @@ Competitor URL **{{ report.audit_details.competitor_url }}** was provided for a 
 | **SSL/HTTPS** | **{{ report.basic_checks.ssl_check.result }}** | {{ report.basic_checks.ssl_check.message }} |
 | **Robots/Sitemap** | **{{ report.basic_checks.robots_sitemap.result }}** | {{ report.basic_checks.robots_sitemap.message }} |
 
+{% if audit_level != 'basic' %}
 ### Free PageSpeed (Lighthouse) Scores
 
 | Strategy | Score | Status | Message |
 | :--- | :--- | :--- | :--- |
 | **Mobile** | {{ report.performance_check.mobile_score.score }} | **{{ report.performance_check.mobile_score.result }}** | {{ report.performance_check.mobile_score.message }} |
 | **Desktop** | {{ report.performance_check.desktop_score.score }} | **{{ report.performance_check.desktop_score.result }}** | {{ report.performance_check.desktop_score.message }} |
+{% endif %}
 
 ---
 
-## 3. Crawled Page Analysis (Reinforced On-Page)
-
-Total Pages Crawled: **{{ report.crawled_pages | length }}**
+## 3. Detailed On-Page Audit Checklist
 
 {% for page in report.crawled_pages %}
-### Page: `{{ page.url }}` (Status: {{ page.response_status }})
+### Page: `{{ page.url }}` (Score: {{ page.final_score or 'N/A' }}/100, Status: {{ page.response_status }})
 
 | Metric | Status | Details |
 | :--- | :--- | :--- |
 | **Title Tag** | {% if page.title %}✅ Pass{% else %}❌ Fail{% endif %} | {{ page.title or "❌ MISSING Title Tag" }} |
 | **Meta Description** | {% if page.meta_description %}✅ Pass{% else %}❌ Fail{% endif %} | {{ page.meta_description or "❌ MISSING Meta Description" }} |
 
-#### Keyword Reinforcement Checks
+{% if audit_level != 'basic' %}
+#### Keyword Reinforcement Checks (Standard/Advanced)
 
 {% if page.keyword_analysis.top_keywords %}
 Primary Keyword: **{{ page.keyword_analysis.top_keywords[0].word | capitalize }}** (Count: {{ page.keyword_analysis.top_keywords[0].count }})
 {% else %}
-Primary Keyword: **N/A** (No content found)
+Primary Keyword: **N/A** (No significant content found)
 {% endif %}
 
 | Check | Status | Details |
 | :--- | :--- | :--- |
 | **Density Check** | **{{ page.keyword_analysis.density_check.result }}** | {{ page.keyword_analysis.density_check.message }} |
 | **Placement Check** | **{{ page.keyword_analysis.placement_check.result }}** | {{ page.keyword_analysis.placement_check.message }} |
-{% if page.keyword_analysis.readability_check %}
+
+{% if audit_level == 'advanced' %}
 | **Readability Score** | **{{ page.keyword_analysis.readability_check.result }}** | {{ page.keyword_analysis.readability_check.message }} |
 {% endif %}
 
@@ -67,9 +112,33 @@ Primary Keyword: **N/A** (No content found)
 {% if 'nap_consistency' in page.local_seo_analysis %}
 | **NAP Consistency** | **{{ page.local_seo_analysis.nap_consistency.result }}** | {{ page.local_seo_analysis.nap_consistency.message }} |
 {% endif %}
-{% if 'local_schema' in page.local_seo_analysis %}
+{% if audit_level == 'advanced' and 'local_schema' in page.local_seo_analysis %}
 | **Local Schema** | **{{ page.local_seo_analysis.local_schema.result }}** | {{ page.local_seo_analysis.local_schema.message }} |
+{% endif %}
+{% endif %}
+
+### 🚧 Actionable Issues Found & Solutions
+
+{% if page.issues and page.solutions %}
+    {% for issue, solution in zip(page.issues, page.solutions) %}
+- **{{ issue }}**
+  - *Solution:* {{ solution }}
+    {% endfor %}
+{% else %}
+✅ No major issues found on this page that require immediate action.
 {% endif %}
 
 ---
 {% endfor %}
+
+## 4. Final Disclaimer
+
+This audit covers **technical** and **on-page** SEO using a proprietary, limited-depth crawler. This tool is designed to provide actionable solutions based on industry best practices.
+
+**Data NOT Included in This Report:**
+* Backlinks (Inbound Links) and external domain authority.
+* Keyword Rankings, Organic Traffic, or Search Console data.
+* Guaranteed speed metrics (relies on free Google PageSpeed API).
+
+**Report Generated By:** Automated Zero-Cost SEO Audit Tool
+**Audit ID:** `{{ now().strftime('%Y%m%d%H%M%S') }}`
