@@ -1,3 +1,5 @@
+# requirements.txt
+
 # Core Libraries for SEO Checks and Domain Analysis
 requests
 beautifulsoup4
@@ -12,3 +14,10 @@ nltk
 scrapy
 pandas
 numpy
+
+# NEW: Dependencies for Modern (JS/CSS) Crawling
+scrapy-playwright
+playwright
+
+# NEW: Dependency for Consistent Markdown/JSON Reporting
+Jinja2
