@@ -72,7 +72,8 @@ This section summarizes critical failures across all **{{ crawled_pages | length
 | :--- | :--- | :--- |
 {% for key, item in issue_data.items() %}
     {% if item.count > 0 %}
-    | **{{ item.description | split('(')[0] | trim }}** | **{{ item.count }}** | {{ item.priority }} |
+    {# FINAL FIX APPLIED HERE: Wrap the complex expression in parentheses #}
+    | **{{ (item.description | split('('))[0] | trim }}** | **{{ item.count }}** | {{ item.priority }} |
         {% set ns.total_issues = ns.total_issues + item.count %}
     {% endif %}
 {% endfor %}
@@ -96,7 +97,7 @@ This section provides clear, human-readable solutions for the issues summarized 
 
 {% for key, item in issue_data.items() %}
     {% if item.count > 0 %}
-### 💡 Issue: {{ item.description | split('(')[0] | trim }} ({{ item.count }} Instances)
+### 💡 Issue: {{ (item.description | split('('))[0] | trim }} ({{ item.count }} Instances)
 * **Description:** {{ item.description }}
 * **Priority:** **{{ item.priority }}**
 * **Solution:** {{ item.solution }}
