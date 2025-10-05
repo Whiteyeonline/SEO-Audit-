@@ -6,11 +6,18 @@ from scrapy.settings import Settings
 from crawler.spider import SEOSpider
 from utils.report_writer import write_summary_report, calculate_seo_score
 from checks import (
+    # All 18 check modules are now imported for comprehensive access
     ssl_check, 
     robots_sitemap, 
     performance_check,
-    keyword_analysis,  # NEW: For advanced keyword checks
-    local_seo_check,   # CORRECTED: Must match local_seo_check.py file name
+    keyword_analysis, 
+    local_seo_check,   # CORRECTED NAME
+    
+    # Modules primarily used by the Spider, but imported here for consistency
+    meta_check, heading_check, image_check, link_check,
+    schema_check, url_structure, internal_links, canonical_check,
+    content_quality, accessibility_check, mobile_friendly_check,
+    backlinks_check, analytics_check
 )
 
 # --- NEW: Playwright Settings for JS/CSS Rendering ---
@@ -22,7 +29,7 @@ CUSTOM_SETTINGS = {
     'LOG_LEVEL': 'INFO',
     'FEED_FORMAT': 'json',
     'FEED_URI': 'reports/crawl_results.json',
-    'DOWNLOAD_TIMEOUT': 30, # Increased for Playwright/JS rendering
+    'DOWNLOAD_TIMEOUT': 30, 
     'CLOSESPIDER_PAGECOUNT': 250,
     'TELNET_ENABLED': False,
     'RETRY_ENABLED': True,         
@@ -37,11 +44,10 @@ CUSTOM_SETTINGS = {
     },
     "TWISTED_REACTOR": "twisted.internet.asyncioreactor.AsyncioSelectorReactor",
     "PLAYWRIGHT_LAUNCH_OPTIONS": {
-        "headless": True, # Runs the browser without a visible GUI
+        "headless": True, 
     },
-    "PLAYWRIGHT_DEFAULT_NAVIGATION_TIMEOUT": 30000, # 30 seconds
+    "PLAYWRIGHT_DEFAULT_NAVIGATION_TIMEOUT": 30000, 
     "PLAYWRIGHT_BROWSER_TYPE": "chromium",
-    # -----------------------------------------------
 }
 
 def competitor_analysis(url):
@@ -59,9 +65,10 @@ def run_audit(target_url, audit_level, competitor_url, audit_scope):
         'audit_scope': audit_scope
     }
 
+    # Checks directly run by main.py
     report['basic_checks'] = {
-        'ssl_check': ssl_check.run(target_url), # Corrected: uses .run()
-        'robots_sitemap': robots_sitemap.run(target_url), # Corrected: uses .run()
+        'ssl_check': ssl_check.run(target_url), 
+        'robots_sitemap': robots_sitemap.run(target_url),
     }
 
     # 2. Run crawl (Scrapy with Playwright)
@@ -90,10 +97,10 @@ def run_audit(target_url, audit_level, competitor_url, audit_scope):
     with open(crawl_results_path, 'r', encoding='utf-8') as f:
         crawl_data = json.load(f)
 
-    # Run performance check (free Google PageSpeed Insights API)
+    # Run post-crawl check
     report['performance_check'] = performance_check.run_pagespeed_check(target_url)
 
-    # Run competitor analysis (Currently skipped for full JS compatibility)
+    # Run competitor analysis
     report['competitor_analysis'] = competitor_analysis(competitor_url)
     
     # Merge crawl results into the main report structure
@@ -108,7 +115,7 @@ def run_audit(target_url, audit_level, competitor_url, audit_scope):
         report, 
         json_path='reports/seo_audit_report.json', 
         md_path='reports/seo_audit_report.md',
-        audit_level=audit_level # Pass level for conditional reporting in MD
+        audit_level=audit_level 
     )
 
     print("✅ SEO Audit Complete. Reports generated in the 'reports' directory.")
@@ -117,11 +124,12 @@ def run_audit(target_url, audit_level, competitor_url, audit_scope):
 if __name__ == '__main__':
     # Get environment variables (e.g., from GitHub Actions)
     audit_url = os.environ.get('AUDIT_URL')
-    audit_level = os.environ.get('AUDIT_LEVEL', 'basic') # basic, standard, advanced
+    audit_level = os.environ.get('AUDIT_LEVEL', 'basic') 
     competitor_url = os.environ.get('COMPETITOR_URL')
-    audit_scope = os.environ.get('AUDIT_SCOPE', 'full_site_250_pages') # only_onpage, onpage_and_index_pages, full_site_250_pages
+    audit_scope = os.environ.get('AUDIT_SCOPE', 'full_site_250_pages') 
     
     if not audit_url:
         print("Error: AUDIT_URL environment variable is not set.")
     else:
         run_audit(audit_url, audit_level, competitor_url, audit_scope)
+    
