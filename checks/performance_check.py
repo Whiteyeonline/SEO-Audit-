@@ -1,45 +1,104 @@
-# checks/performance_check.py
+# checks/performance_check.py (Focusing on the error-prone functions)
+
 import requests
+import json
+# ... (other imports remain unchanged)
 
-PAGESPEED_API_URL = "https://www.googleapis.com/pagespeedinsights/v5/runPagespeed"
-
-def run_pagespeed_check(url):
-    """Runs a check using the free Google PageSpeed Insights API."""
+# --- Utility Function for Safe Extraction ---
+def extract_score(data):
+    """Safely extracts performance score or handles API errors."""
     
-    # Run separate checks for Desktop and Mobile strategies
-    desktop_params = {'url': url, 'strategy': 'desktop'}
-    mobile_params = {'url': url, 'strategy': 'mobile'}
-    
-    def fetch_data(params):
-        try:
-            response = requests.get(PAGESPEED_API_URL, params=params, timeout=25)
-            response.raise_for_status()
-            return response.json()
-        except requests.RequestException as e:
-            return {"error": f"API request failed: {e}"}
+    # CRITICAL FIX: Check if 'data' is a dictionary before using .get()
+    if not isinstance(data, dict):
+        # If it's not a dict, it's likely a raw string error message or None
+        # Safely return a failure status
+        return {'result': 'Fail', 'score': 0, 'message': 'API did not return valid JSON response.'}
 
-    desktop_data = fetch_data(desktop_params)
-    mobile_data = fetch_data(mobile_params)
+    # Check for a specific API error structure
+    if 'error' in data:
+        return {'result': 'Fail', 'score': 0, 'message': data['error'].get('message', 'API request failed with unhandled error.')}
 
-    def extract_score(data):
-        if 'error' in data:
-            # Handle API errors gracefully
-            return {'result': 'Fail', 'score': 0, 'message': data.get('error', {}).get('message', 'API request failed.')}
-        
-        # Performance Score (Lighthouse)
-        score = data.get('lighthouseResult', {}).get('categories', {}).get('performance', {}).get('score', 0) * 100
-        score = int(score)
-        
-        result = 'Pass'
-        if score < 50:
-            result = 'Fail'
-        elif score < 90:
-            result = 'Warning'
+    # Extract performance metrics
+    try:
+        score_value = int(data
+            .get('lighthouseResult', {})
+            .get('categories', {})
+            .get('performance', {})
+            .get('score', 0) * 100) # Score is typically 0 to 1, convert to 0-100
             
-        return {'result': result, 'score': score, 'message': f"Lighthouse Performance Score: {score}"}
+        message = f"Score: {score_value}. See detailed Lighthouse report for metrics."
+        result = 'Pass' if score_value >= 90 else ('Warning' if score_value >= 50 else 'Fail')
+        
+        return {'result': result, 'score': score_value, 'message': message}
+    
+    except Exception as e:
+        return {'result': 'Fail', 'score': 0, 'message': f"Data extraction error: {e}"}
 
-    return {
-        'desktop_score': extract_score(desktop_data),
-        'mobile_score': extract_score(mobile_data),
+
+# --- Main Check Function ---
+def run_pagespeed_check(url, api_key=None):
+    """
+    Runs Google PageSpeed Insights check for both mobile and desktop.
+    NOTE: API Key management logic (where to load it from) is omitted here, 
+    assuming it's either None (which usually defaults to a shared limit) or 
+    passed via the environment in a more complete version.
+    """
+    
+    # NOTE: You MUST set your GOOGLE_PAGESPEED_API_KEY environment variable 
+    # in your GitHub Secrets for this to work reliably.
+    
+    api_key = api_key or os.environ.get('GOOGLE_PAGESPEED_API_KEY')
+    base_url = "https://www.googleapis.com/pagespeedonline/v5/runPagespeed"
+    
+    # 1. Mobile Check
+    mobile_params = {
+        'url': url,
+        'strategy': 'mobile',
+        'locale': 'en_US',
+        'key': api_key
     }
     
+    try:
+        mobile_response = requests.get(base_url, params=mobile_params, timeout=20)
+        # Use .json() to parse the response, but handle the case where it might fail
+        try:
+            mobile_data = mobile_response.json()
+        except json.JSONDecodeError:
+            # If JSON decoding fails, the response content is likely the raw error string
+            mobile_data = mobile_response.text 
+            
+    except requests.exceptions.RequestException as e:
+        mobile_data = {'error': {'message': f"Request failed: {e}"}}
+
+
+    # 2. Desktop Check
+    desktop_params = {
+        'url': url,
+        'strategy': 'desktop',
+        'locale': 'en_US',
+        'key': api_key
+    }
+    
+    try:
+        desktop_response = requests.get(base_url, params=desktop_params, timeout=20)
+        try:
+            desktop_data = desktop_response.json()
+        except json.JSONDecodeError:
+            desktop_data = desktop_response.text
+            
+    except requests.exceptions.RequestException as e:
+        desktop_data = {'error': {'message': f"Request failed: {e}"}}
+
+
+    # 3. Compile Results
+    return {
+        'check_name': 'Performance Check (PageSpeed Insights)',
+        'target_url': url,
+        'mobile_score': extract_score(mobile_data),
+        'desktop_score': extract_score(desktop_data),
+        'status': 'Complete'
+    }
+
+# The rest of the file (e.g., the run() function, if you have one) is unchanged.
+# Ensure you save the full content back to checks/performance_check.py
+                        
