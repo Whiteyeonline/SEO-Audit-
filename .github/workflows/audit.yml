@@ -1,4 +1,4 @@
-# .github/workflows/audit.yml (FINAL & CORRECTED - REVISED SCOPE)
+# .github/workflows/audit.yml (FINAL & CORRECTED)
 name: Professional SEO Audit
 on:
   workflow_dispatch:
@@ -6,11 +6,11 @@ on:
       audit_url:
         description: 'URL to audit (e.g., https://example.com)'
         required: true 
-        default: # Setting a non-empty default
+        default: 
       audit_level:
         description: 'Audit level (basic, standard, or advanced)'
         required: true
-        default: 'standard' # Setting a default
+        default: 'standard' 
         type: choice
         options:
         - basic
@@ -22,7 +22,7 @@ on:
       audit_scope:
         description: 'Crawl scope'
         required: true
-        default: 'full_site_300_pages' # Setting a default
+        default: 'full_site_300_pages' 
         type: choice
         options:
         - only_onpage
@@ -52,8 +52,10 @@ jobs:
           pip install -r requirements.txt --upgrade
           # Install Playwright browser drivers required by Scrapy-Playwright
           playwright install --with-deps
-          # Downloads the necessary data for textblob and textstat 
+          # Downloads the necessary data for textblob 
           python -m textblob.download_corpora
+          # NEW: Downloads the necessary data for NLTK (required by textblob/textstat)
+          python -m nltk.downloader punkt
                 
       - name: Run SEO Audit 🚀
         env:
