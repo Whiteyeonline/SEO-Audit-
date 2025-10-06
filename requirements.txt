@@ -1,10 +1,11 @@
-# requirements.txt (UPDATED AND FINAL)
+# requirements.txt (FINAL AND CORRECTED)
 
 # Core Crawling Framework
 Scrapy>=2.11.0
 
 # Asynchronous web rendering and dynamic site support (CRITICAL for JavaScript sites)
-scrapy-playwright>=0.17.0
+# FIX: Adjusted version to >=0.0.44 to resolve the dependency distribution error.
+scrapy-playwright>=0.0.44 
 
 # Web Request/HTTP Utility (For initial checks like SSL/Robots)
 requests>=2.31.0
@@ -25,8 +26,5 @@ textblob>=0.18.0
 textstat>=0.7.1
 nltk>=3.8.1
 
-# NOTE on playwright:
-# The `playwright` package is usually installed via the 'scrapy-playwright'
-# dependency, but it's listed here for clarity. The browser binaries 
-# are installed by the action workflow using 'playwright install --with-deps'.
+# Note: The browser binaries for Playwright are installed in the workflow.
 playwright>=1.41.0
