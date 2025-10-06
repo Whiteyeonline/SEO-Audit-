@@ -1,4 +1,4 @@
-# main.py (Final, Complete, and Error-Corrected Version - REVISED FOR STABILITY)
+# main.py (Final, Complete, and Error-Corrected Version - REVISED FOR MAXIMUM STABILITY)
 import os
 import json
 from scrapy.crawler import CrawlerProcess
@@ -17,14 +17,15 @@ from checks import (
 # -----------------------------------
 # --- Scrapy/Playwright Settings for CI Stability ---
 CUSTOM_SETTINGS = {
-    'USER_AGENT': 'ProfessionalSEOAgency (+https://github.com/your-repo)',
+    # 🚨 FIX: Using a real browser User-Agent to evade bot detection
+    'USER_AGENT': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
     'ROBOTSTXT_OBEY': False,
     'CONCURRENT_REQUESTS': 2,
     'DOWNLOAD_DELAY': 3.0,
     'LOG_LEVEL': 'INFO',
     'FEED_FORMAT': 'json',
     'FEED_URI': 'reports/crawl_results.json',
-    'DOWNLOAD_TIMEOUT': 60,     # Increased standard timeout from 30 to 60 seconds
+    'DOWNLOAD_TIMEOUT': 90,     # Increased standard timeout from 60 to 90 seconds
     'CLOSESPIDER_PAGECOUNT': 300, 
     'TELNET_ENABLED': False,
     'RETRY_ENABLED': True,             
@@ -39,9 +40,9 @@ CUSTOM_SETTINGS = {
     "TWISTED_REACTOR": "twisted.internet.asyncioreactor.AsyncioSelectorReactor",
     "PLAYWRIGHT_LAUNCH_OPTIONS": {
         "headless": True,         
-        "timeout": 60000     # Increased Playwright launch timeout from 30s to 60s (60000ms)
+        "timeout": 90000     # Increased Playwright launch timeout from 60s to 90s (90000ms)
     },
-    "PLAYWRIGHT_DEFAULT_NAVIGATION_TIMEOUT": 90000,     # Increased navigation timeout from 60s to 90s (90000ms)
+    "PLAYWRIGHT_DEFAULT_NAVIGATION_TIMEOUT": 120000, # Increased navigation timeout from 90s to 120s (2 minutes)
     "PLAYWRIGHT_BROWSER_TYPE": "chromium",
     "PLAYWRIGHT_RETRY_REQUESTS": True, 
     "PLAYWRIGHT_RETRY_TIMES": 3,     
@@ -133,4 +134,3 @@ if __name__ == '__main__':
         audit_url = 'https://example.com' 
 
     run_audit(audit_url, audit_level, competitor_url, audit_scope)
-    
