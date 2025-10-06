@@ -4,11 +4,10 @@ import logging
 from scrapy.crawler import CrawlerProcess
 from scrapy.settings import Settings
 from crawler.spider import SEOSpider
-from utils.report_writer import write_summary_report, calculate_seo_score
+# Assuming these are correct imports from utils/report_writer.py
+from utils.report_writer import write_summary_report, calculate_seo_score 
 
 # --- IMPORT ALL 18 CHECK MODULES ---
-# These are imported here to ensure they are available for the post-crawl
-# aggregation and scoring logic, as they contain scoring functions.
 from checks import (
     ssl_check, robots_sitemap, performance_check, keyword_analysis, 
     local_seo_check, meta_check, heading_check, image_check, link_check,
@@ -27,7 +26,6 @@ ALL_CHECKS_MODULES = [
 
 # --- Scrapy/Playwright Settings for CI Stability ---
 CUSTOM_SETTINGS = {
-    # General Settings
     'USER_AGENT': 'ProfessionalSEOAgency (+https://github.com/your-repo)',
     'ROBOTSTXT_OBEY': False,
     'LOG_LEVEL': 'INFO',
@@ -35,7 +33,6 @@ CUSTOM_SETTINGS = {
     'CLOSESPIDER_PAGECOUNT': 250,
     'TELNET_ENABLED': False,
 
-    # Playwright Settings (CRITICAL for dynamic crawling)
     'TWISTED_REACTOR': 'twisted.internet.asyncioreactor.AsyncioSelectorReactor',
     'DOWNLOAD_HANDLERS': {
         'http': 'scrapy_playwright.handler.ScrapyPlaywrightDownloadHandler',
@@ -43,18 +40,15 @@ CUSTOM_SETTINGS = {
     },
     'PLAYWRIGHT_LAUNCH_OPTIONS': {
         'headless': True,
-        # Ensure Playwright waits long enough on slow pages
         'timeout': 60000, 
     },
     
-    # Feeds (Output file where results are saved)
     'FEED_FORMAT': 'json',
     'FEED_URI': 'reports/crawl_results.json',
     'FEED_EXPORT_ENCODING': 'utf-8',
 
-    # Throttling
-    'CONCURRENT_REQUESTS': 2, # Keep low for Playwright stability
-    'DOWNLOAD_DELAY': 3.0,    # Introduce delay to be polite
+    'CONCURRENT_REQUESTS': 2,
+    'DOWNLOAD_DELAY': 3.0,
 }
 # ---------------------------------------------------
 
@@ -71,35 +65,30 @@ def main():
         print("Error: AUDIT_URL environment variable is not set.")
         return
 
-    # Create reports directory if it doesn't exist
     os.makedirs('reports', exist_ok=True)
     
     # 2. Configure and Run Crawler
     settings = Settings(CUSTOM_SETTINGS)
     
-    # Dynamically set CLOSESPIDER_PAGECOUNT based on audit scope
     if AUDIT_SCOPE == 'only_onpage':
         settings.set('CLOSESPIDER_PAGECOUNT', 1)
         
     process = CrawlerProcess(settings)
     
-    # Add the spider to the process
+    # Pass the settings object to the spider as part of the Scrapy contract, 
+    # even though the spider will access it via .crawler.settings
     process.crawl(SEOSpider, start_url=AUDIT_URL)
     
-    # Start the crawl - this is a blocking call
     print(f"\n🚀 Starting SEO Audit for {AUDIT_URL}...")
     print(f"   Scope: {AUDIT_SCOPE} (Max pages: {settings.get('CLOSESPIDER_PAGECOUNT')})\n")
     process.start()
 
     # 3. Retrieve and Aggregate Results
-    
-    # Scrapy saves results to FEED_URI; retrieve them
     crawl_results = []
     crawl_file_path = CUSTOM_SETTINGS['FEED_URI']
     if os.path.exists(crawl_file_path) and os.path.getsize(crawl_file_path) > 0:
         try:
             with open(crawl_file_path, 'r', encoding='utf-8') as f:
-                # Scrapy saves results as an array of JSON objects
                 crawl_results = json.load(f) 
         except json.JSONDecodeError as e:
             logging.error(f"Error decoding crawl results JSON: {e}")
@@ -109,25 +98,19 @@ def main():
         print("⚠️ WARNING: Crawl results file is missing or empty. This indicates the spider may have failed to crawl any pages.")
 
     # 4. Process and Report Results
-    
-    # Separate the initial checks from the actual crawled pages
     initial_checks = next((item['checks'] for item in crawl_results if item.get('url') == 'INITIAL_CHECKS'), {})
     crawled_pages = [item for item in crawl_results if item.get('url') != 'INITIAL_CHECKS']
     
-    # CRITICAL: Get the final statistics (which includes the accurate count)
     total_pages_crawled = len(crawled_pages)
-    if total_pages_crawled == 0:
-        # If the only result is INITIAL_CHECKS, the actual page crawl failed.
+    if total_pages_crawled == 0 and not initial_checks:
         print(f"⚠️ Crawl finished, but no pages were successfully scraped beyond initial checks.")
         
-    # Generate the structured report JSON
+    # FIX 2: Correct the signature for calculate_seo_score()
     final_score, structured_report_data = calculate_seo_score(
-        audit_details={
-            'target_url': AUDIT_URL, 
-            'audit_level': AUDIT_LEVEL, 
-            'competitor_url': COMPETITOR_URL,
-            'audit_scope': AUDIT_SCOPE
-        },
+        target_url=AUDIT_URL, # Pass as individual keyword argument
+        audit_level=AUDIT_LEVEL, # Pass as individual keyword argument
+        competitor_url=COMPETITOR_URL, # Pass as individual keyword argument
+        audit_scope=AUDIT_SCOPE, # Pass as individual keyword argument
         initial_checks=initial_checks,
         crawled_pages=crawled_pages,
         total_pages_crawled=total_pages_crawled,
