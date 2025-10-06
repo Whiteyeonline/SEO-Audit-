@@ -22,31 +22,38 @@ CUSTOM_SETTINGS = {
     'ROBOTSTXT_OBEY': False,
     'CONCURRENT_REQUESTS': 2,
     'DOWNLOAD_DELAY': 3.0,
-    'LOG_LEVEL': 'INFO',
+    # Temporarily set to 'DEBUG' if you can check the logs, otherwise keep 'INFO'
+    'LOG_LEVEL': 'INFO', 
     'FEED_FORMAT': 'json',
     'FEED_URI': 'reports/crawl_results.json',
-    'DOWNLOAD_TIMEOUT': 90,     # Increased standard timeout from 60 to 90 seconds
+    'DOWNLOAD_TIMEOUT': 120,    # Increased from 90 to 120 seconds
     'CLOSESPIDER_PAGECOUNT': 300, 
     'TELNET_ENABLED': False,
     'RETRY_ENABLED': True,             
     'RETRY_TIMES': 5,
     'REDIRECT_ENABLED': True,
     'REDIRECT_MAX_TIMES': 5,        
+    
     # --- CRITICAL PLAYWRIGHT INTEGRATION & STABILITY --- 
     "DOWNLOAD_HANDLERS": {
         "http": "scrapy_playwright.handler.ScrapyPlaywrightDownloadHandler",
         "https": "scrapy_playwright.handler.ScrapyPlaywrightDownloadHandler",
     },
-    "TWISTED_REACTOR": "twisted.internet.asyncioreactor.AsyncioSelectorReactor",
+    # 🚨 Stability Fix: Forcing the Playwright reactor to be the default
+    "TWISTED_REACTOR": "twisted.internet.asyncioreactor.AsyncioSelectorReactor", 
     "PLAYWRIGHT_LAUNCH_OPTIONS": {
         "headless": True,         
-        "timeout": 90000     # Increased Playwright launch timeout from 60s to 90s (90000ms)
+        "timeout": 120000     # Increased Playwright launch timeout to 120s (120000ms)
     },
-    "PLAYWRIGHT_DEFAULT_NAVIGATION_TIMEOUT": 120000, # Increased navigation timeout from 90s to 120s (2 minutes)
+    "PLAYWRIGHT_DEFAULT_NAVIGATION_TIMEOUT": 180000, # Increased navigation timeout to 180s (3 minutes)
     "PLAYWRIGHT_BROWSER_TYPE": "chromium",
     "PLAYWRIGHT_RETRY_REQUESTS": True, 
     "PLAYWRIGHT_RETRY_TIMES": 3,     
     "PLAYWRIGHT_MAX_PAGES_PER_PROCESS": 5, 
+    
+    # 🚨 Final attempt at connection stability settings
+    "DOWNLOAD_FAIL_ON_404": False,
+    "DOWNLOAD_FAIL_ON_REDIRECT": False,
 }
 
 def competitor_analysis(url):  
@@ -83,6 +90,7 @@ def run_audit(target_url, audit_level, competitor_url, audit_scope):
 
     # Scrapy setup
     process = CrawlerProcess(settings)
+    # The SEOSpider expects the audit_scope argument
     process.crawl(SEOSpider, start_urls=[target_url], audit_level=audit_level, audit_scope=audit_scope)
     process.start()         
 
@@ -134,3 +142,4 @@ if __name__ == '__main__':
         audit_url = 'https://example.com' 
 
     run_audit(audit_url, audit_level, competitor_url, audit_scope)
+    
