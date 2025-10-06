@@ -75,12 +75,15 @@ def main():
         
     process = CrawlerProcess(settings)
     
-    # Pass the settings object to the spider as part of the Scrapy contract, 
-    # even though the spider will access it via .crawler.settings
-    process.crawl(SEOSpider, start_url=AUDIT_URL)
+    # --- IMPORTANT FIX PREPARATION for spider.py ---
+    # Pass the max_pages directly as a parameter to the spider
+    max_pages_count = settings.getint('CLOSESPIDER_PAGECOUNT')
+
+    process.crawl(SEOSpider, start_url=AUDIT_URL, max_pages_config=max_pages_count)
+    # -----------------------------------------------
     
     print(f"\n🚀 Starting SEO Audit for {AUDIT_URL}...")
-    print(f"   Scope: {AUDIT_SCOPE} (Max pages: {settings.get('CLOSESPIDER_PAGECOUNT')})\n")
+    print(f"   Scope: {AUDIT_SCOPE} (Max pages: {max_pages_count})\n")
     process.start()
 
     # 3. Retrieve and Aggregate Results
@@ -105,12 +108,16 @@ def main():
     if total_pages_crawled == 0 and not initial_checks:
         print(f"⚠️ Crawl finished, but no pages were successfully scraped beyond initial checks.")
         
-    # FIX 2: Correct the signature for calculate_seo_score()
+    # --- FIX: Revert to dictionary passed positionally for calculate_seo_score ---
+    audit_details_data = {
+        'target_url': AUDIT_URL, 
+        'audit_level': AUDIT_LEVEL, 
+        'competitor_url': COMPETITOR_URL,
+        'audit_scope': AUDIT_SCOPE
+    }
+        
     final_score, structured_report_data = calculate_seo_score(
-        target_url=AUDIT_URL, # Pass as individual keyword argument
-        audit_level=AUDIT_LEVEL, # Pass as individual keyword argument
-        competitor_url=COMPETITOR_URL, # Pass as individual keyword argument
-        audit_scope=AUDIT_SCOPE, # Pass as individual keyword argument
+        audit_details_data, # Pass dictionary positionally (this should resolve the TypeError)
         initial_checks=initial_checks,
         crawled_pages=crawled_pages,
         total_pages_crawled=total_pages_crawled,
@@ -133,3 +140,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+    
