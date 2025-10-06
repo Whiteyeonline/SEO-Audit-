@@ -1,54 +1,51 @@
-# .github/workflows/audit.yml (FINAL & CORRECTED)
+# .github/workflows/audit.yml (FINAL & CORRECTED - REVISED SCOPE)
 name: Professional SEO Audit
-
 on:
   workflow_dispatch:
     inputs:
       audit_url:
         description: 'URL to audit (e.g., https://example.com)'
-        required: true
-        default: 
+        required: true 
+        default: # Setting a non-empty default
       audit_level:
         description: 'Audit level (basic, standard, or advanced)'
         required: true
-        default: 
+        default: 'standard' # Setting a default
         type: choice
         options:
         - basic
         - standard
         - advanced
-      competitor_url:
+      competitor_url:    
         description: 'Competitor URL for comparison (Optional)'
         required: false
       audit_scope:
         description: 'Crawl scope'
         required: true
-        default: 
+        default: 'full_site_300_pages' # Setting a default
         type: choice
         options:
         - only_onpage
         - onpage_and_index_pages
-        - full_site_250_pages
-
+        - full_site_300_pages # UPDATED: Renamed from full_site_250_pages
 jobs:
-  run-audit:
+  run-audit:  
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v4
-        
-      - name: Set up Python 
+        uses: actions/checkout@v4              
+      - name: Set up Python         
         uses: actions/setup-python@v5
         with:
           # Using '3.9' for reliable installation of Scrapy and Playwright dependencies
-          python-version: '3.9' 
-          
+          python-version: '3.9'
+        
       - name: Install system dependencies for Playwright (CRITICAL FIX) ⚙️
         # Installs headless browser dependencies 
         run: |
           sudo apt-get update
           sudo apt-get install -y libglib2.0-0 libnss3 libfontconfig1 libcups2 libxtst6 libxss1 libgbm-dev
-          
+                
       - name: Install Python dependencies and corpora 🛠️
         run: |
           python -m pip install --upgrade pip
@@ -57,7 +54,7 @@ jobs:
           playwright install --with-deps
           # Downloads the necessary data for textblob and textstat 
           python -m textblob.download_corpora
-          
+                
       - name: Run SEO Audit 🚀
         env:
           AUDIT_URL: ${{ github.event.inputs.audit_url }}
@@ -66,7 +63,7 @@ jobs:
           AUDIT_SCOPE: ${{ github.event.inputs.audit_scope }}
         run: |
           python main.py
-          
+                
       - name: Upload SEO Audit Reports
         uses: actions/upload-artifact@v4
         with:
