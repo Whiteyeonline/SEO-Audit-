@@ -8,7 +8,7 @@ from scrapy_playwright.page import PageMethod
 from scrapy.selector import Selector
 from urllib.parse import urljoin, urlparse
 
-# --- Import All 18 Check Modules (Required by main.py setup) ---
+# --- Import All 18 Check Modules ---
 # Ensure all these files (e.g., checks/ssl_check.py) exist and each has a 'run' function.
 from checks import (
     ssl_check, robots_sitemap, performance_check, keyword_analysis, 
@@ -106,7 +106,10 @@ class SEOSpider(scrapy.Spider):
 
         # Process next pages only if audit scope is full_site
         if self.audit_scope == 'full_site':
-            yield from self.crawl_links(response)
+            # FIX: Replace 'yield from' with an explicit 'for' loop for compatibility
+            #      between async context (parse) and sync generator (crawl_links).
+            for request in self.crawl_links(response):
+                yield request # This is line 110 from the traceback
 
     # -----------------------------------------------------------------
     # 3. LINK CRAWLING: Logic for finding and queuing internal links
@@ -166,15 +169,12 @@ class SEOSpider(scrapy.Spider):
 
 
     # -----------------------------------------------------------------
-    # 5. CORE CHECK EXECUTION (FIXED LOGIC)
+    # 5. CORE CHECK EXECUTION (Local SEO fix retained)
     # -----------------------------------------------------------------
     @staticmethod
     def run_single_page_checks(url: str, html_content: str) -> dict:
         """
         Runs all individual SEO checks on the scraped page content.
-        
-        This method was the source of the previous AttributeError. 
-        It is structured to call the 'run' method on all imported check modules.
         """
         page_checks = {}
         try:
@@ -195,7 +195,7 @@ class SEOSpider(scrapy.Spider):
                 "mobile_friendly": mobile_friendly_check.run(url, html_content),
                 "accessibility": accessibility_check.run(url, html_content),
                 
-                # THIS IS THE PREVIOUSLY MISSING/FAILED CALL:
+                # Previous fix for AttributeError
                 "local_seo": local_seo_check.run(url, html_content), 
                 
                 # Standard checks that rely on external tools/data, often placeholders
