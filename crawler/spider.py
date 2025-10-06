@@ -1,4 +1,4 @@
-# crawler/spider.py (FINAL COMPLETE VERSION - FIX: Added Post-Load Wait Timeout)
+# crawler/spider.py (FINAL COMPLETE VERSION - FIX: Playwright for ALL internal links)
 import scrapy
 from bs4 import BeautifulSoup
 from urllib.parse import urlparse, urljoin
@@ -31,31 +31,31 @@ class SEOSpider(scrapy.Spider):
             'local_seo', 'analytics', 'accessibility'
         ]
 
-    # 🚨 CRITICAL FIX 1 & 2: Explicitly define start_requests and force a wait period
+    # Playwright Settings (defined once to be reused for start_requests and follow logic)
+    PLAYWRIGHT_SETTINGS = {
+        "playwright": True,
+        "playwright_page_kwargs": {
+            "wait_until": "load", 
+        },
+        # CRITICAL FIX: Add a 3-second pause after 'load'
+        "playwright_page_methods": [
+            ("wait_for_timeout", 3000), 
+        ]
+    }
+
+    # CRITICAL FIX 1: Explicitly define start_requests to use Playwright
     def start_requests(self):
         """Generates the initial requests with Playwright and a mandatory wait time."""
         for url in self.start_urls:
-            # Setting up Playwright to explicitly wait for the page to fully load and run JS
-            playwright_settings = {
-                "playwright": True,
-                "playwright_page_kwargs": {
-                    # Wait until the DOM and all resources (images, CSS) have finished loading
-                    "wait_until": "load", 
-                },
-                # CRITICAL FIX: Add a 3-second pause after 'load' to ensure all lazy-loaded content appears
-                "playwright_page_methods": [
-                    ("wait_for_timeout", 3000), 
-                ]
-            }
             yield scrapy.Request(
                 url=url, 
                 callback=self.parse, 
-                meta=playwright_settings
+                meta=self.PLAYWRIGHT_SETTINGS
             )
 
     @staticmethod
     def run_single_page_checks(url, html_content):
-        # All 15 checks run on a single page
+        # All 15 checks remain here (no changes needed)
         results = {
             "url_structure": url_structure.run(url),
             "canonical": canonical_check.run(url, html_content),
@@ -109,10 +109,14 @@ class SEOSpider(scrapy.Spider):
                 absolute_url = urljoin(response.url, href)
                 
                 if urlparse(absolute_url).netloc == self.crawl_domain:
-                    # Note: Subsequent internal links are crawled with a standard Scrapy request for performance, 
-                    # assuming only the entry page needs forced JavaScript rendering.
-                    yield response.follow(absolute_url, callback=self.parse)
+                    # 🚨 CRITICAL FIX 2: Force ALL subsequent internal link requests to use Playwright
+                    # This ensures JavaScript is rendered for every internal page.
+                    yield scrapy.Request(
+                        url=absolute_url,
+                        callback=self.parse,
+                        meta=self.PLAYWRIGHT_SETTINGS 
+                    )
         
-        # Always yield the page results (this is what populates the crawl_results.json file)
+        # Always yield the page results
         yield page_results
-        
+            
