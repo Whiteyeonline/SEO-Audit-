@@ -1,4 +1,4 @@
-# crawler/spider.py (FINAL COMPLETE VERSION - FIX: Added start_requests for Playwright)
+# crawler/spider.py (FINAL COMPLETE VERSION - FIX: Added Post-Load Wait Timeout)
 import scrapy
 from bs4 import BeautifulSoup
 from urllib.parse import urlparse, urljoin
@@ -21,11 +21,9 @@ class SEOSpider(scrapy.Spider):
         self.allowed_domains = [self.crawl_domain]
         self.audit_level = audit_level
         
-        # Determine max_depth based on audit_scope for link following logic
         if audit_scope == 'only_onpage':
             self.max_depth = 0
         else:
-            # Set a high depth for standard/advanced to be limited by CLOSESPIDER_PAGECOUNT in main.py
             self.max_depth = 100 
             
         self.basic_checks = [
@@ -33,15 +31,26 @@ class SEOSpider(scrapy.Spider):
             'local_seo', 'analytics', 'accessibility'
         ]
 
-    # 🚨 CRITICAL FIX 1: Explicitly define start_requests to enable Playwright
+    # 🚨 CRITICAL FIX 1 & 2: Explicitly define start_requests and force a wait period
     def start_requests(self):
-        """Generates the initial requests with the 'playwright' meta key."""
+        """Generates the initial requests with Playwright and a mandatory wait time."""
         for url in self.start_urls:
-            # MUST include meta={'playwright': True} for scrapy-playwright to handle the request
+            # Setting up Playwright to explicitly wait for the page to fully load and run JS
+            playwright_settings = {
+                "playwright": True,
+                "playwright_page_kwargs": {
+                    # Wait until the DOM and all resources (images, CSS) have finished loading
+                    "wait_until": "load", 
+                },
+                # CRITICAL FIX: Add a 3-second pause after 'load' to ensure all lazy-loaded content appears
+                "playwright_page_methods": [
+                    ("wait_for_timeout", 3000), 
+                ]
+            }
             yield scrapy.Request(
                 url=url, 
                 callback=self.parse, 
-                meta={"playwright": True} 
+                meta=playwright_settings
             )
 
     @staticmethod
@@ -89,25 +98,21 @@ class SEOSpider(scrapy.Spider):
         page_checks = SEOSpider.run_single_page_checks(url, html_content)
         
         if self.audit_level == 'basic':
-            # Filter results for basic level checks
             filtered_results = {key: page_checks.get(key) for key in self.basic_checks if page_checks.get(key) is not None}
             page_results.update(filtered_results)
         else:
-            # Include all results for standard/advanced levels
             page_results.update(page_checks)
             
         # Follow Internal Links (Only for deep crawls)
-        # Note: only_onpage sets self.max_depth=0, so this block is skipped for onpage audits.
         if depth < self.max_depth: 
             for href in response.css('a::attr(href)').getall():
                 absolute_url = urljoin(response.url, href)
                 
-                # Ensure the link stays within the same domain
                 if urlparse(absolute_url).netloc == self.crawl_domain:
-                    # Subsequent requests *do not* need the 'playwright: True' meta unless you need JavaScript rendering for every link
-                    # For performance, we assume only the start page needs Playwright unless specified otherwise.
+                    # Note: Subsequent internal links are crawled with a standard Scrapy request for performance, 
+                    # assuming only the entry page needs forced JavaScript rendering.
                     yield response.follow(absolute_url, callback=self.parse)
         
-        # Always yield the page results (this is the item that main.py collects)
+        # Always yield the page results (this is what populates the crawl_results.json file)
         yield page_results
-    
+        
