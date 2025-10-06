@@ -1,4 +1,4 @@
-# main.py (Final, Complete, and Error-Corrected Version - REVISED)
+# main.py (Final, Complete, and Error-Corrected Version - REVISED FOR STABILITY)
 import os
 import json
 from scrapy.crawler import CrawlerProcess
@@ -7,7 +7,6 @@ from crawler.spider import SEOSpider
 from utils.report_writer import write_summary_report, calculate_seo_score, get_check_aggregation
 
 # --- IMPORT ALL 18 CHECK MODULES ---
-# Ensures all 18 modules are available for the audit process
 from checks import (
     ssl_check, robots_sitemap, performance_check, keyword_analysis, 
     local_seo_check, meta_check, heading_check, image_check, link_check,
@@ -25,8 +24,8 @@ CUSTOM_SETTINGS = {
     'LOG_LEVEL': 'INFO',
     'FEED_FORMAT': 'json',
     'FEED_URI': 'reports/crawl_results.json',
-    'DOWNLOAD_TIMEOUT': 30,     
-    'CLOSESPIDER_PAGECOUNT': 300, # UPDATED LIMIT: 250 to 300
+    'DOWNLOAD_TIMEOUT': 60,     # Increased standard timeout from 30 to 60 seconds
+    'CLOSESPIDER_PAGECOUNT': 300, 
     'TELNET_ENABLED': False,
     'RETRY_ENABLED': True,             
     'RETRY_TIMES': 5,
@@ -40,17 +39,17 @@ CUSTOM_SETTINGS = {
     "TWISTED_REACTOR": "twisted.internet.asyncioreactor.AsyncioSelectorReactor",
     "PLAYWRIGHT_LAUNCH_OPTIONS": {
         "headless": True,         
-        "timeout": 30000     
+        "timeout": 60000     # Increased Playwright launch timeout from 30s to 60s (60000ms)
     },
-    "PLAYWRIGHT_DEFAULT_NAVIGATION_TIMEOUT": 60000,     
+    "PLAYWRIGHT_DEFAULT_NAVIGATION_TIMEOUT": 90000,     # Increased navigation timeout from 60s to 90s (90000ms)
     "PLAYWRIGHT_BROWSER_TYPE": "chromium",
-    "PLAYWRIGHT_RETRY_REQUESTS": True, # Retry failed Playwright requests
+    "PLAYWRIGHT_RETRY_REQUESTS": True, 
     "PLAYWRIGHT_RETRY_TIMES": 3,     
-    "PLAYWRIGHT_MAX_PAGES_PER_PROCESS": 5, # Limit concurrent browser sessions
+    "PLAYWRIGHT_MAX_PAGES_PER_PROCESS": 5, 
 }
 
 def competitor_analysis(url):  
-    # This remains a placeholder, as per your request not to use external, limited APIs
+    # This remains a placeholder
     return {"status": "skipped", "error": "Competitor analysis not fully implemented using free tools."}
 
 def run_audit(target_url, audit_level, competitor_url, audit_scope):
@@ -78,7 +77,7 @@ def run_audit(target_url, audit_level, competitor_url, audit_scope):
         settings.set('CONCURRENT_REQUESTS', 1) 
     elif audit_scope == 'onpage_and_index_pages':   
         settings.set('CLOSESPIDER_PAGECOUNT', 25)
-    elif audit_scope == 'full_site_300_pages': # UPDATED NAME & LIMIT
+    elif audit_scope == 'full_site_300_pages': 
         settings.set('CLOSESPIDER_PAGECOUNT', 300)
 
     # Scrapy setup
@@ -115,7 +114,7 @@ def run_audit(target_url, audit_level, competitor_url, audit_scope):
     with open(json_structured_path, 'w', encoding='utf-8') as f:
         json.dump(report, f, indent=4)
 
-    write_summary_report( # This function now generates the MD directly
+    write_summary_report(
         report,         
         md_path='reports/seo_professional_report.md',
         audit_level=audit_level     
