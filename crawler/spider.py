@@ -21,16 +21,17 @@ from checks import (
 class SEOSpider(scrapy.Spider):
     name = "SEOSpider"
 
-    def __init__(self, *args, **kwargs):
+    # CRITICAL FIX: Accept max_pages_config argument passed from main.py
+    def __init__(self, start_url, max_pages_config, *args, **kwargs): 
         super().__init__(*args, **kwargs)
         
-        self.start_url = os.environ.get('AUDIT_URL')
+        self.start_url = start_url
         self.audit_scope = os.environ.get('AUDIT_SCOPE', 'only_onpage')
         self.allowed_domains = [urlparse(self.start_url).netloc]
         self.total_pages_crawled = 0
         
-        # FIX 1: Use self.crawler.settings to access CLOSESPIDER_PAGECOUNT
-        self.max_pages = self.crawler.settings.getint('CLOSESPIDER_PAGECOUNT', 250)
+        # FIX: Use the value passed from the CrawlerProcess in main.py
+        self.max_pages = max_pages_config
         
         self.crawled_results = []
         self.initial_basic_checks = {}
@@ -48,12 +49,13 @@ class SEOSpider(scrapy.Spider):
             "checks": self.initial_basic_checks
         })
     
-    # --- Helper function for safe check execution (rest of the file remains the same) ---
+    # --- Helper function for safe check execution ---
     def _safe_run_check(self, module, function_name, *args, **kwargs):
         """Safely executes a check function, returning an error structure on failure."""
         try:
             return getattr(module, function_name)(*args, **kwargs)
         except Exception as e:
+            # We must use self.logger here as 'print' may interfere with Scrapy process
             self.logger.error(f"Error in {module.__name__}.{function_name} for {args[0]}: {e}")
             return {
                 "check_name": f"{module.__name__} Check",
@@ -66,6 +68,7 @@ class SEOSpider(scrapy.Spider):
     # 1. START REQUESTS: Defines the initial requests using Playwright
     # -----------------------------------------------------------------
     def start_requests(self) -> Generator[scrapy.Request, None, None]:
+        # self.crawler is guaranteed to be available here, but we don't need it for max_pages anymore
         self.crawler.stats.set_value('audit/start_url', self.start_url)
         
         yield scrapy.Request(
@@ -89,9 +92,11 @@ class SEOSpider(scrapy.Spider):
         self.total_pages_crawled += 1
         page = response.meta["playwright_page"]
         
+        # Get the rendered HTML content
         html_content = await page.content()
         current_url = response.url
         
+        # Close the page to free up resources
         await page.close()
 
         self.logger.info(f"Processing page: {current_url} | Crawled: {self.total_pages_crawled}/{self.max_pages}")
@@ -103,6 +108,7 @@ class SEOSpider(scrapy.Spider):
             "checks": page_checks
         })
 
+        # Only crawl links if scope is 'full_site' and max pages hasn't been reached
         if self.audit_scope == 'full_site':
             for request in self.crawl_links(response):
                 yield request
@@ -120,6 +126,7 @@ class SEOSpider(scrapy.Spider):
         for href in links:
             absolute_url = urljoin(base_url, href)
             
+            # Check if internal and exclude file extensions/fragments
             if urlparse(absolute_url).netloc == self.allowed_domains[0] and not re.search(r'(\.pdf|\.zip|\#)', absolute_url):
                 yield scrapy.Request(
                     url=absolute_url,
@@ -136,7 +143,7 @@ class SEOSpider(scrapy.Spider):
                 )
     
     # -----------------------------------------------------------------
-    # 4. ERROR HANDLING & 5. CORE CHECK EXECUTION (As previously corrected)
+    # 4. ERROR HANDLING 
     # -----------------------------------------------------------------
     async def errback(self, failure):
         request = failure.request
@@ -154,15 +161,20 @@ class SEOSpider(scrapy.Spider):
             }
         })
     
+    # -----------------------------------------------------------------
+    # 5. CORE CHECK EXECUTION 
+    # -----------------------------------------------------------------
     def run_single_page_checks(self, url: str, html_content: str) -> dict:
         page_checks = {}
         
+        # Checks that use only URL or external APIs (no HTML needed)
         checks_url_only = [
             (performance_check, 'run', url),
             (backlinks_check, 'run', url),
             (analytics_check, 'run', url),
         ]
         
+        # Checks that require URL and rendered HTML content
         checks_url_html = [
             (meta_check, 'run', url, html_content),
             (heading_check, 'run', url, html_content),
@@ -179,6 +191,7 @@ class SEOSpider(scrapy.Spider):
             (keyword_analysis, 'run', url, html_content),
         ]
 
+        # Execute all checks
         for module, func_name, *args in checks_url_only + checks_url_html:
             check_name = module.__name__.split('.')[-1]
             page_checks[check_name] = self._safe_run_check(module, func_name, *args)
@@ -189,7 +202,8 @@ class SEOSpider(scrapy.Spider):
     # 6. SPIDER CLOSED: Final aggregation before Scrapy shuts down
     # -----------------------------------------------------------------
     def closed(self, reason: str):
+        # Store final results in crawler stats for main.py to retrieve
         self.crawler.stats.set_value('audit/final_results', self.crawled_results)
         self.crawler.stats.set_value('audit/total_pages_crawled', self.total_pages_crawled)
         self.logger.info(f"Spider closed. Reason: {reason}. Pages crawled: {self.total_pages_crawled}")
-        
+    
