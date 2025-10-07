@@ -1,30 +1,12 @@
-# requirements.txt (FINAL AND CORRECTED)
-
-# Core Crawling Framework
 Scrapy>=2.11.0
-
-# Asynchronous web rendering and dynamic site support (CRITICAL for JavaScript sites)
-# FIX: Adjusted version to >=0.0.44 to resolve the dependency distribution error.
-scrapy-playwright>=0.0.44 
-
-# Web Request/HTTP Utility (For initial checks like SSL/Robots)
+scrapy-playwright>=0.0.44
 requests>=2.31.0
-
-# HTML/XML Parsing (Required by Scrapy and for general content extraction)
 beautifulsoup4>=4.12.3
 lxml>=5.1.0
 parsel>=1.8.1
-
-# Domain Extraction Utility
 tldextract>=3.5.1
-
-# Validation Utility (Often used for URL/data verification)
 validators>=0.22.0
-
-# Data Analysis, Natural Language Processing, and Readability Checks
 textblob>=0.18.0
 textstat>=0.7.1
 nltk>=3.8.1
-
-# Note: The browser binaries for Playwright are installed in the workflow.
 playwright>=1.41.0
