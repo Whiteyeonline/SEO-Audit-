@@ -4,9 +4,8 @@ import logging
 from scrapy.crawler import CrawlerProcess
 from scrapy.settings import Settings
 from crawler.spider import SEOSpider
-from utils.report_writer import write_summary_report, calculate_seo_score
+from utils.report_writer import write_summary_report, get_check_aggregation
 
-# Import all check modules
 from checks import (
     ssl_check, robots_sitemap, performance_check, keyword_analysis,
     local_seo_check, meta_check, heading_check, image_check, link_check,
@@ -48,10 +47,10 @@ CUSTOM_SETTINGS = {
 
 def main():
     try:
-        audit_url = os.environ['AUDIT_URL']
-        audit_level = os.environ.get('AUDIT_LEVEL', 'basic')
-        competitor_url = os.environ.get('COMPETITOR_URL', '')
-        audit_scope = os.environ.get('AUDIT_SCOPE', 'only_onpage')
+        AUDIT_URL = os.environ['AUDIT_URL']
+        AUDIT_LEVEL = os.environ.get('AUDIT_LEVEL', 'basic')
+        COMPETITOR_URL = os.environ.get('COMPETITOR_URL', '')
+        AUDIT_SCOPE = os.environ.get('AUDIT_SCOPE', 'only_onpage')
     except KeyError:
         print("Error: AUDIT_URL environment variable is not set.")
         return
@@ -60,58 +59,67 @@ def main():
 
     settings = Settings(CUSTOM_SETTINGS)
 
-    if audit_scope == 'only_onpage':
+    if AUDIT_SCOPE == 'only_onpage':
         settings.set('CLOSESPIDER_PAGECOUNT', 1)
 
     process = CrawlerProcess(settings)
-    max_pages = settings.getint('CLOSESPIDER_PAGECOUNT')
+    max_pages_count = settings.getint('CLOSESPIDER_PAGECOUNT')
 
-    process.crawl(SEOSpider, start_url=audit_url, max_pages_config=max_pages)
+    process.crawl(SEOSpider, start_url=AUDIT_URL, max_pages_config=max_pages_count)
 
-    print(f"\n🚀 Starting SEO Audit for {audit_url}...")
-    print(f"   Scope: {audit_scope} (Max pages: {max_pages})\n")
+    print(f"\n🚀 Starting SEO Audit for {AUDIT_URL}...")
+    print(f"   Scope: {AUDIT_SCOPE} (Max pages: {max_pages_count})\n")
     process.start()
 
-    # Read crawl results
-    crawl_file = CUSTOM_SETTINGS['FEED_URI']
-    if os.path.exists(crawl_file) and os.path.getsize(crawl_file) > 0:
-        with open(crawl_file, 'r', encoding='utf-8') as f:
-            crawl_results = json.load(f)
+    crawl_results = []
+    crawl_file_path = CUSTOM_SETTINGS['FEED_URI']
+    if os.path.exists(crawl_file_path) and os.path.getsize(crawl_file_path) > 0:
+        try:
+            with open(crawl_file_path, 'r', encoding='utf-8') as f:
+                crawl_results = json.load(f)
+        except json.JSONDecodeError as e:
+            logging.error(f"Error decoding crawl results JSON: {e}")
+            print("🚨 FATAL ERROR: Failed to read crawl results file. Aborting report generation.")
+            return
     else:
-        print("Warning: No crawl results found. Exiting.")
+        print("⚠️ WARNING: Crawl results file is missing or empty. This indicates the spider may have failed to crawl any pages.")
         return
 
-    # Extract initial checks and pages
     initial_checks = next((item['checks'] for item in crawl_results if item.get('url') == 'INITIAL_CHECKS'), {})
-    pages = [item for item in crawl_results if item.get('url') != 'INITIAL_CHECKS']
-    total_pages = len(pages)
+    crawled_pages = [item for item in crawl_results if item.get('url') != 'INITIAL_CHECKS']
 
-    # Prepare report data
-    report_data = {
-        'target_url': audit_url,
-        'audit_level': audit_level,
-        'competitor_url': competitor_url,
-        'audit_scope': audit_scope,
-        'crawled_pages': pages,
-        'total_pages_crawled': total_pages,
+    total_pages_crawled = len(crawled_pages)
+    if total_pages_crawled == 0 and not initial_checks:
+        print(f"⚠️ Crawl finished, but no pages were successfully scraped beyond initial checks.")
+
+    aggregation = get_check_aggregation(crawled_pages)
+
+    structured_report_data = {
+        'audit_details': {
+            'target_url': AUDIT_URL,
+            'audit_level': AUDIT_LEVEL,
+            'competitor_url': COMPETITOR_URL,
+            'audit_scope': AUDIT_SCOPE,
+        },
+        'final_score': None,  # Score calculation removed
+        'crawled_pages': crawled_pages,
+        'total_pages_crawled': total_pages_crawled,
+        'aggregated_issues': aggregation,
         'basic_checks': initial_checks,
+        'performance_check': {},  # You can insert performance check data here if needed
     }
 
-    # Calculate score and get full report
-    final_score, structured_data = calculate_seo_score(report_data)
+    structured_file_path = "reports/seo_audit_structured_report.json"
+    with open(structured_file_path, 'w', encoding='utf-8') as f:
+        json.dump(structured_report_data, f, indent=4)
 
-    # Save structured JSON report
-    structured_path = "reports/seo_audit_structured_report.json"
-    with open(structured_path, 'w', encoding='utf-8') as f:
-        json.dump(structured_data, f, indent=4)
-    print(f"Structured report saved to {structured_path}")
+    print(f"✅ Structured report saved to: {structured_file_path}")
 
-    # Generate markdown report
-    markdown_path = "reports/seo_professional_report.md"
-    write_summary_report(structured_data, final_score, markdown_path)
-    print(f"Report saved to {markdown_path}")
-    print(f"\nFinal SEO Score: {final_score}/100 | Pages Crawled: {total_pages}")
+    markdown_file_path = "reports/seo_professional_report.md"
+    write_summary_report(structured_report_data, None, markdown_file_path)
+
+    print(f"✅ Summary report saved to: {markdown_file_path}")
+    print(f"\nPages Crawled: {total_pages_crawled}")
 
 if __name__ == "__main__":
     main()
-    
