@@ -1,151 +1,143 @@
-import os
-import re
 import scrapy
-from scrapy_playwright.page import PageMethod
-from urllib.parse import urljoin, urlparse
+from scrapy_playwright.page import PageCoroutine
+from urllib.parse import urlparse, urljoin
 
-from checks import (
-    ssl_check, robots_sitemap, performance_check, keyword_analysis,
-    local_seo_check, meta_check, heading_check, image_check, link_check,
-    schema_check, url_structure, internal_links, canonical_check,
-    content_quality, accessibility_check, mobile_friendly_check,
-    backlinks_check, analytics_check
-)
 
 class SEOSpider(scrapy.Spider):
-    name = "SEOSpider"
+    name = "seo_spider"
 
-    def __init__(self, start_url, max_pages_config, *args, **kwargs):
+    custom_settings = {
+        "PLAYWRIGHT_DEFAULT_NAVIGATION_TIMEOUT": 30000,
+        "PLAYWRIGHT_LAUNCH_OPTIONS": {"headless": True},
+        "DOWNLOAD_HANDLERS": {
+            "http": "scrapy_playwright.handler.ScrapyPlaywrightDownloadHandler",
+            "https": "scrapy_playwright.handler.ScrapyPlaywrightDownloadHandler",
+        },
+        "TWISTED_REACTOR": "twisted.internet.asyncioreactor.AsyncioSelectorReactor",
+        "CONCURRENT_REQUESTS": 2,
+        "DOWNLOAD_DELAY": 3,
+    }
+
+    def __init__(self, start_url=None, max_pages_config=25, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.start_url = start_url
-        self.audit_scope = os.environ.get('AUDIT_SCOPE', 'only_onpage')
-        self.allowed_domains = [urlparse(self.start_url).netloc]
-        self.total_pages_crawled = 0
+        if not start_url:
+            raise ValueError("start_url must be provided")
+        self.start_urls = [start_url]
+        self.allowed_domains = [urlparse(start_url).netloc]
         self.max_pages = max_pages_config
-        self.crawled_results = []
-        self.initial_basic_checks = {}
-
-        if not self.start_url:
-            raise ValueError("AUDIT_URL environment variable is not set.")
-
-        self.initial_basic_checks['ssl_check'] = self._safe_run_check(ssl_check, 'run', self.start_url)
-        self.initial_basic_checks['robots_sitemap'] = self._safe_run_check(robots_sitemap, 'run', self.start_url)
-        self.crawled_results.append({
-            "url": "INITIAL_CHECKS",
-            "checks": self.initial_basic_checks
-        })
-
-    def _safe_run_check(self, module, function_name, *args, **kwargs):
-        try:
-            return getattr(module, function_name)(*args, **kwargs)
-        except Exception as e:
-            self.logger.error(f"Error in {module.__name__}.{function_name} for {args[0]}: {e}")
-            return {
-                "check_name": f"{module.__name__} Check",
-                "status": "Error",
-                "issues": [{"type": "critical", "message": f"Check failed due to error: {e}"}],
-                "details": {}
-            }
+        self.pages_crawled = 0
+        self.visited = set()
 
     def start_requests(self):
-        yield scrapy.Request(
-            url=self.start_url,
-            callback=self.parse,
-            meta={
-                "playwright": True,
-                "playwright_include_page": True,
-                "playwright_page_methods": [
-                    PageMethod("wait_for_selector", "body"),
-                    PageMethod("wait_for_timeout", 3000),
-                ]
-            },
-            errback=self.errback
-        )
+        for url in self.start_urls:
+            yield scrapy.Request(
+                url,
+                meta={
+                    "playwright": True,
+                    "playwright_page_coroutines": [
+                        PageCoroutine("wait_for_selector", "body", timeout=10000)
+                    ],
+                    "download_timeout": 60,
+                },
+                callback=self.parse,
+                errback=self.errback,
+            )
 
     async def parse(self, response):
-        self.total_pages_crawled += 1
-        page = response.meta["playwright_page"]
-        html_content = await page.content()
-        current_url = response.url
-        await page.close()
-        self.logger.info(f"Processing page: {current_url} | Crawled: {self.total_pages_crawled}/{self.max_pages}")
+        url = response.url
 
-        page_checks = self.run_single_page_checks(current_url, html_content)
-        self.crawled_results.append({
-            "url": current_url,
-            "checks": page_checks
-        })
-
-        if self.audit_scope == 'full_site':
-            for request in self.crawl_links(response):
-                yield request
-
-    def crawl_links(self, response):
-        if self.total_pages_crawled >= self.max_pages:
+        if url in self.visited or self.pages_crawled >= self.max_pages:
             return
-        links = response.css('a::attr(href)').getall()
-        base_url = response.url
-        for href in links:
-            absolute_url = urljoin(base_url, href)
-            if urlparse(absolute_url).netloc == self.allowed_domains[0] and not re.search(r'(\.pdf|\.zip|\#)', absolute_url):
-                yield scrapy.Request(
-                    url=absolute_url,
-                    callback=self.parse,
-                    meta={
-                        "playwright": True,
-                        "playwright_include_page": True,
-                        "playwright_page_methods": [
-                            PageMethod("wait_for_selector", "body"),
-                            PageMethod("wait_for_timeout", 3000),
-                        ]
-                    },
-                    errback=self.errback
-                )
+        self.visited.add(url)
+        self.pages_crawled += 1
+
+        # Gather SEO data points
+        page_data = {
+            "url": url,
+            "status_code": response.status,
+            "is_crawlable": response.status == 200,
+            "error_detail": None,
+            "meta": {
+                "title": response.css("title::text").get(default="").strip(),
+                "description": response.css('meta[name="description"]::attr(content)').get(default="").strip(),
+            },
+            "headings": {
+                "h1": len(response.css("h1")),
+                "h2": len(response.css("h2")),
+                "h3": len(response.css("h3")),
+            },
+            "links": {
+                "internal": [],
+                "external": [],
+                "broken": [],  # Detected post crawl, placeholder
+            },
+            "canonical": {
+                "canonical_url": response.css('link[rel="canonical"]::attr(href)').get(default=""),
+                "match": True,  # To be checked post crawl actual URL comparison
+            },
+            "images": {
+                "total": len(response.css("img")),
+                "missing_alt": len(response.xpath("//img[not(@alt)]")),
+            },
+            "content": {
+                "word_count": len(response.xpath("//body//text()").getall()),
+                "readability_score": "N/A (Calculate separately)",
+            },
+            "mobile": {
+                "mobile_friendly": True,  # Placeholder as requires further testing
+                "note": "",
+                "issues": [],
+            },
+            "analytics": {
+                "tracking_setup": {
+                    "google_analytics_found": bool(response.xpath("//*[contains(@src, 'google-analytics.com')]")),
+                    "google_tag_manager_found": bool(response.xpath("//*[contains(@src, 'googletagmanager.com')]")),
+                }
+            },
+            "accessibility_issues": [],  # Placeholder for detailed accessibility checks
+            "keywords": {
+                "density_check": {"result": "N/A", "message": ""},
+                "placement_check": {"result": "N/A", "message": ""},
+            },
+            # Add other fields as per need
+        }
+
+        yield page_data
+
+        # Continue crawling internal links
+        if self.pages_crawled >= self.max_pages:
+            return
+
+        base_url = f"{url.split('?')[0].rstrip('/')}"
+        hrefs = response.css("a::attr(href)").getall()
+
+        for href in hrefs:
+            if not href:
+                continue
+
+            absolute_url = urljoin(base_url, href.strip())
+            parsed_href = urlparse(absolute_url)
+
+            if parsed_href.scheme not in ("http", "https"):
+                continue
+            if parsed_href.netloc != self.allowed_domains[0]:
+                continue
+            if absolute_url in self.visited:
+                continue
+
+            yield scrapy.Request(
+                absolute_url,
+                meta={
+                    "playwright": True,
+                    "playwright_page_coroutines": [
+                        PageCoroutine("wait_for_selector", "body", timeout=10000)
+                    ],
+                    "download_timeout": 60,
+                },
+                callback=self.parse,
+                errback=self.errback,
+            )
 
     async def errback(self, failure):
-        request = failure.request
-        self.logger.error(f"Request failed: {request.url} - {failure.value}")
-        self.crawled_results.append({
-            "url": request.url,
-            "checks": {
-                "fetch_error": {
-                    "check_name": "Page Fetch Error",
-                    "status": "Fail",
-                    "issues": [{"type": "critical", "message": f"Request failed: {failure.value}"}],
-                    "details": {"url": request.url}
-                }
-            }
-        })
-
-    def run_single_page_checks(self, url: str, html_content: str) -> dict:
-        page_checks = {}
-        checks_url_only = [
-            (performance_check, 'run', url),
-            (backlinks_check, 'run', url),
-            (analytics_check, 'run', url),
-        ]
-        checks_url_html = [
-            (meta_check, 'run', url, html_content),
-            (heading_check, 'run', url, html_content),
-            (image_check, 'run', url, html_content),
-            (link_check, 'run', url, html_content),
-            (schema_check, 'run', url, html_content),
-            (local_seo_check, 'run', url, html_content),
-            (url_structure, 'run', url),
-            (internal_links, 'run', url, html_content),
-            (canonical_check, 'run', url, html_content),
-            (content_quality, 'run', url, html_content),
-            (mobile_friendly_check, 'run', url, html_content),
-            (accessibility_check, 'run', url, html_content),
-            (keyword_analysis, 'run', url, html_content),
-        ]
-        for module, func_name, *args in checks_url_only + checks_url_html:
-            check_name = module.__name__.split('.')[-1]
-            page_checks[check_name] = self._safe_run_check(module, func_name, *args)
-        return page_checks
-
-    def closed(self, reason: str):
-        self.crawler.stats.set_value('audit/final_results', self.crawled_results)
-        self.crawler.stats.set_value('audit/total_pages_crawled', self.total_pages_crawled)
-        self.logger.info(f"Spider closed. Reason: {reason}. Pages crawled: {self.total_pages_crawled}")
+        self.logger.warning(f"Request failed: {failure.request.url} - {repr(failure)}")
         
