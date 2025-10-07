@@ -98,18 +98,16 @@ def main():
         'audit_scope': AUDIT_SCOPE,
         'crawled_pages': crawled_pages,
         'total_pages_crawled': total_pages_crawled,
-        'all_checks_modules': ALL_CHECKS_MODULES,
         'basic_checks': initial_checks,
     }
 
-    # Pass entire report_data dict to match current report_writer.py calculate_seo_score signature
     final_score = calculate_seo_score(audit_details_data)
 
-    structured_file_path = f"reports/seo_audit_structured_report.json"
-    with open(structured_file_path, 'w', encoding='utf-8') as f:
+    # Dump JSON without non-serializable modules
+    with open(f"reports/seo_audit_structured_report.json", 'w', encoding='utf-8') as f:
         json.dump(audit_details_data, f, indent=4)
 
-    print(f"✅ Structured report saved to: {structured_file_path}")
+    print(f"✅ Structured report saved to: reports/seo_audit_structured_report.json")
 
     markdown_file_path = f"reports/seo_professional_report.md"
     write_summary_report(audit_details_data, final_score, markdown_file_path)
@@ -119,4 +117,4 @@ def main():
 
 if __name__ == "__main__":
     main()
-        
+    
