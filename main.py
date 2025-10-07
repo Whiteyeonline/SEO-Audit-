@@ -101,20 +101,20 @@ def main():
         'basic_checks': initial_checks,
     }
 
-    final_score = calculate_seo_score(audit_details_data)
+    # Get both score and structured details report
+    final_score, structured_report_data = calculate_seo_score(audit_details_data)
 
-    # Dump JSON without non-serializable modules
-    with open(f"reports/seo_audit_structured_report.json", 'w', encoding='utf-8') as f:
-        json.dump(audit_details_data, f, indent=4)
+    structured_file_path = "reports/seo_audit_structured_report.json"
+    with open(structured_file_path, 'w', encoding='utf-8') as f:
+        json.dump(structured_report_data, f, indent=4)
 
-    print(f"✅ Structured report saved to: reports/seo_audit_structured_report.json")
+    print(f"✅ Structured report saved to: {structured_file_path}")
 
-    markdown_file_path = f"reports/seo_professional_report.md"
-    write_summary_report(audit_details_data, final_score, markdown_file_path)
+    markdown_file_path = 'reports/seo_professional_report.md'
+    write_summary_report(structured_report_data, final_score, markdown_file_path)
 
     print(f"✅ Summary report saved to: {markdown_file_path}")
     print(f"\nFinal SEO Score: {final_score}/100 | Pages Crawled: {total_pages_crawled}")
 
 if __name__ == "__main__":
     main()
-    
