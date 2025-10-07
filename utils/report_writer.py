@@ -78,47 +78,9 @@ def get_check_aggregation(crawled_pages):
     return aggregation
 
 
-def calculate_seo_score(report_data):
-    """
-    Calculates a final SEO score based on penalties applied to check results.
-    """
-    score = 100
-    PENALTIES = {
-        'ssl_fail': 20,
-        'robots_fail': 10,
-        'performance_fail': 15,
-        'meta_desc_fail_per_page': 1,
-        'h1_fail_per_page': 0.5,
-    }
-
-    ssl_status = report_data.get('basic_checks', {}).get('ssl_check', {}).get('valid_ssl')
-    robots_status = report_data.get('basic_checks', {}).get('robots_sitemap', {}).get('robots.txt')
-    sitemap_status = report_data.get('basic_checks', {}).get('robots_sitemap', {}).get('sitemap.xml')
-
-    if not ssl_status:
-        score -= PENALTIES['ssl_fail']
-    if robots_status == 'not found' or sitemap_status == 'not found':
-        score -= PENALTIES['robots_fail']
-
-    performance_check = report_data.get('performance_check', {})
-    desktop_result = performance_check.get('desktop_score', {}).get('result', 'Fail')
-
-    if desktop_result == 'Fail':
-        score -= PENALTIES['performance_fail']
-
-    crawled_pages = report_data.get('crawled_pages', [])
-    for page in crawled_pages:
-        if not page.get('is_crawlable', True):
-            continue
-        if not page.get('meta', {}).get('description'):
-            score -= PENALTIES['meta_desc_fail_per_page']
-        if page.get('headings', {}).get('h1') != 1:
-            score -= PENALTIES['h1_fail_per_page']
-
-    return max(0, score)
-
-
 def _get_status_label(score):
+    if score is None:
+        return "N/A"
     if score >= 85:
         return 'Excellent 🏆'
     if score >= 60:
@@ -225,15 +187,18 @@ def write_summary_report(report, final_score, md_path):
     # Report Header
     content.append("# 💎 PROFESSIONAL SEO AUDIT REPORT")
     content.append(f"**Date:** {current_time} | **URL:** {audit_details['target_url']}")
-    content.append(
-        f"**Audit Level:** {audit_details['audit_level'].capitalize()} | **Powered by:** Free, Open-Source Tools Only (No API Limits) 🚀")
+    content.append(f"**Audit Level:** {audit_details['audit_level'].capitalize()} | **Powered by:** Free, Open-Source Tools Only (No API Limits) 🚀")
     content.append("---")
 
-    # Executive Summary
+    # Executive Summary with Score and Pages Crawled
     content.append("## 1. Executive Summary: At a Glance")
     content.append("| Metric | Value | Status |")
     content.append("| :--- | :--- | :--- |")
-    content.append(f"| **Final SEO Score** | **{final_score}/100** | **{_get_status_label(final_score)}** |")
+
+    score_display = f"{final_score}/100" if final_score is not None else "N/A"
+    status_label = _get_status_label(final_score)
+
+    content.append(f"| **Final SEO Score** | **{score_display}** | **{status_label}** |")
     content.append(f"| **Total Pages Crawled** | **{len(crawled_pages)}** | |")
 
     scope_display = audit_details['audit_scope'].replace('_', ' ').capitalize()
@@ -246,6 +211,26 @@ def write_summary_report(report, final_score, md_path):
         scope_detail = "The scan attempted a deep crawl of the site (limit: 300 pages)."
 
     content.append(f"| **Audit Scope** | **{scope_display}** | {scope_detail} |")
+    content.append("---")
+
+    # Summary of Key Counts
+    content.append("## 1a. Summary of Key Metrics")
+    content.append("| Metric | Total Count |")
+    content.append("| :--- | :--- |")
+    content.append(f"| Total Pages Crawled | {len(crawled_pages)} |")
+    content.append(f"| Broken Links Found | {aggregated_issues.get('link_broken_total', 0)} |")
+    content.append(f"| Pages Missing Title Tag | {aggregated_issues.get('title_fail_count', 0)} |")
+    content.append(f"| Pages Missing Meta Description | {aggregated_issues.get('desc_fail_count', 0)} |")
+    content.append(f"| Pages With Multiple or Missing H1 | {aggregated_issues.get('h1_fail_count', 0)} |")
+    content.append(f"| Images Without Alt Text | {aggregated_issues.get('missing_alt_total', 0)} |")
+    content.append(f"| Pages With Canonical Mismatch | {aggregated_issues.get('canonical_mismatch_count', 0)} |")
+    content.append(f"| Pages Missing Analytics Tracking | {aggregated_issues.get('analytics_missing_count', 0)} |")
+    content.append(f"| Pages Not Mobile Friendly | {aggregated_issues.get('mobile_unfriendly_count', 0)} |")
+    content.append(f"| Pages With Thin Content (<200 words) | {aggregated_issues.get('thin_content_count', 0)} |")
+    content.append(f"| Pages With Accessibility Heading Issues | {aggregated_issues.get('accessibility_fail_count', 0)} |")
+    content.append(f"| Pages With Poor Readability Score | {aggregated_issues.get('content_readability_warning', 0)} |")
+    content.append(f"| Pages With Keyword Density Issues | {aggregated_issues.get('keyword_density_warning', 0)} |")
+    content.append(f"| Pages With Improper Keyword Placement | {aggregated_issues.get('keyword_placement_warning', 0)} |")
     content.append("---")
 
     # Site-Wide Issue Aggregation
@@ -320,12 +305,6 @@ def write_summary_report(report, final_score, md_path):
     # Detailed Page-by-Page Audit
     content.append(f"## 5. Detailed Page-by-Page Audit ({len(crawled_pages)} Pages)")
     content.append("This section provides granular data for each page crawled. Note that Playwright is used to crawl JavaScript-rendered sites, ensuring all dynamic content is audited.")
-
-    all_checks = [
-        'url_structure', 'canonical', 'meta', 'headings', 'content', 'images', 'mobile', 'local_seo',
-        'analytics', 'accessibility', 'schema', 'keywords', 'links', 'internal_links', 'backlinks',
-        'ssl_check (Basic)', 'robots_sitemap (Basic)', 'performance_check (Basic)'
-    ]
 
     for i, page in enumerate(crawled_pages):
         page_index = i + 1
