@@ -1,23 +1,50 @@
 name: Professional SEO Audit
+
 on:
   workflow_dispatch:
     inputs:
-      auditurl: { description: 'URL to audit (e.g. https://example.com)', required: true, default: '' }
-      auditlevel: { description: 'Audit level (basic, standard, advanced)', required: true, default: 'standard', type: choice, options: ['basic', 'standard', 'advanced'] }
-      competitorurl: { description: 'Competitor URL for comparison (Optional)', required: false }
-      auditscope: { description: 'Crawl scope', required: true, default: 'fullsite300pages', type: choice, options: ['onlyonpage', 'onpageandindexpages', 'fullsite300pages'] }
+      auditurl:
+        description: 'URL to audit (e.g. https://example.com)'
+        required: true
+        default: ''
+      auditlevel:
+        description: 'Audit level (basic, standard, advanced)'
+        required: true
+        type: choice
+        options:
+          - basic
+          - standard
+          - advanced
+        default: standard
+      auditscope:
+        description: 'Crawl scope'
+        required: true
+        type: choice
+        options:
+          - onlyonpage
+          - onpageandindexpages
+          - fullsite300pages
+        default: fullsite300pages
+      competitorurl:
+        description: 'Competitor URL for comparison (optional)'
+        required: false
+        default: ''
+
 jobs:
   run-audit:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.9'
+
       - name: Install system dependencies for Playwright
         run: sudo apt-get update && sudo apt-get install -y libglib2.0-0 libnss3 libfontconfig1 libcups2 libxtst6 libxss1 libgbm-dev
+
       - name: Install Python dependencies and corpora
         run: |
           python -m pip install --upgrade pip
@@ -25,17 +52,19 @@ jobs:
           playwright install --with-deps
           python -m textblob.download_corpora
           python -m nltk.downloader punkt
+
       - name: Run SEO Audit
         env:
           AUDITURL: ${{ github.event.inputs.auditurl }}
           AUDITLEVEL: ${{ github.event.inputs.auditlevel }}
-          COMPETITORURL: ${{ github.event.inputs.competitorurl }}
           AUDITSCOPE: ${{ github.event.inputs.auditscope }}
+          COMPETITORURL: ${{ github.event.inputs.competitorurl }}
         run: python main.py
+
       - name: Upload SEO Audit Reports
         uses: actions/upload-artifact@v4
         with:
-          name: seo-audit-reports-${{ github.event.inputs.auditlevel }}
+          name: seo-audit-reports-${{ github.event.inputs.auditlevel }}-${{ github.event.inputs.auditscope }}
           path: reports
-          retention-days: 5
+          retention-days: 7
           
