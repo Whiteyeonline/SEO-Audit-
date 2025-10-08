@@ -1,14 +1,21 @@
 import scrapy
 from urllib.parse import urlparse, urljoin
 import logging
-from checks import *
+
+from checks import (
+    ssl_check, robots_sitemap, performance_check, keyword_analysis,
+    local_seo_check, meta_check, heading_check, image_check, link_check,
+    schema_check, url_structure, internal_links, canonical_check,
+    content_quality, accessibility_check, mobile_friendly_check,
+    backlinks_check, analytics_check
+)
 
 ALL_CHECKS_MODULES = [
-    sslcheck, robotssitemap, performancecheck, keywordanalysis,
-    localseocheck, metacheck, headingcheck, imagecheck, linkcheck,
-    schemacheck, urlstructure, internallinks, canonicalcheck,
-    contentquality, accessibilitycheck, mobilefriendlycheck,
-    backlinkscheck, analyticscheck
+    ssl_check, robots_sitemap, performance_check, keyword_analysis,
+    local_seo_check, meta_check, heading_check, image_check, link_check,
+    schema_check, url_structure, internal_links, canonical_check,
+    content_quality, accessibility_check, mobile_friendly_check,
+    backlinks_check, analytics_check
 ]
 
 class SEOSpider(scrapy.Spider):
@@ -26,18 +33,18 @@ class SEOSpider(scrapy.Spider):
         "LOG_LEVEL": "INFO"
     }
 
-    def __init__(self, starturl=None, maxpagesconfig=25, *args, **kwargs):
+    def __init__(self, start_url=None, max_pages_config=25, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        if not starturl:
-            raise ValueError("starturl must be provided")
-        self.starturls = [starturl]
-        self.allowed_domains = [urlparse(starturl).netloc]
-        self.maxpages = maxpagesconfig
-        self.pagescrawled = 0
+        if not start_url:
+            raise ValueError("start_url must be provided")
+        self.start_urls = [start_url]
+        self.allowed_domains = [urlparse(start_url).netloc]
+        self.max_pages = max_pages_config
+        self.pages_crawled = 0
         self.visited = set()
 
     def start_requests(self):
-        for url in self.starturls:
+        for url in self.start_urls:
             self.logger.info(f"Starting crawl at url: {url}")
             yield scrapy.Request(
                 url,
@@ -51,12 +58,12 @@ class SEOSpider(scrapy.Spider):
         if url in self.visited:
             self.logger.debug(f"Skipping visited URL {url}")
             return
-        if self.pagescrawled >= self.maxpages:
-            self.logger.info(f"Reached max pages limit {self.maxpages}")
+        if self.pages_crawled >= self.max_pages:
+            self.logger.info(f"Reached max pages limit {self.max_pages}")
             return
         self.visited.add(url)
-        self.pagescrawled += 1
-        self.logger.info(f"Crawling page {self.pagescrawled}: {url}")
+        self.pages_crawled += 1
+        self.logger.info(f"Crawling page {self.pages_crawled}: {url}")
 
         page = response.meta.get("playwright_page")
         if page:
@@ -66,38 +73,44 @@ class SEOSpider(scrapy.Spider):
         else:
             html_content = response.text
 
-        checkresults = {}
-        # Run all checks async where possible, otherwise fallback to sync
-        for checkmodule in ALL_CHECKS_MODULES:
+        check_results = {}
+        for check_module in ALL_CHECKS_MODULES:
             try:
-                result = await checkmodule.run_url(url, html_content) if hasattr(checkmodule, "async_run_url") else checkmodule.run_url(url, html_content)
-                checkresults[checkmodule.__name__] = result
+                if hasattr(check_module, "async_run_url"):
+                    result = await check_module.async_run_url(url, html_content)
+                else:
+                    result = check_module.run_url(url, html_content)
+                check_results[check_module.__name__] = result
             except Exception as e:
-                self.logger.error(f"Check {checkmodule.__name__} failed on URL {url}: {str(e)}")
-                checkresults[checkmodule.__name__] = {"error": str(e)}
+                self.logger.error(f"Check {check_module.__name__} failed on URL {url}: {str(e)}")
+                check_results[check_module.__name__] = {"error": str(e)}
 
-        pagedata = {
+        page_data = {
             "url": url,
-            "statuscode": response.status,
-            "checks": checkresults,
-            "iscrawlable": response.status == 200
+            "status_code": response.status,
+            "checks": check_results,
+            "is_crawlable": response.status == 200
         }
-        yield pagedata
+        yield page_data
 
-        # Enqueue more URLs (limit to domain and not previously visited)
-        baseurl = url.split("?")[0].rstrip("/")
+        base_url = url.split("?")[0].rstrip("/")
         hrefs = response.css("a::attr(href)").getall()
         for href in hrefs:
             if not href:
                 continue
-            absolute_url = urljoin(baseurl, href.strip())
+            absolute_url = urljoin(base_url, href.strip())
             parsed_href = urlparse(absolute_url)
             if parsed_href.scheme not in ("http", "https") or parsed_href.netloc != self.allowed_domains[0]:
                 continue
             if absolute_url in self.visited:
                 continue
-            yield scrapy.Request(absolute_url, meta={"playwright": True, "download_timeout": 60}, callback=self.parse, errback=self.errback)
+            yield scrapy.Request(
+                absolute_url,
+                meta={"playwright": True, "download_timeout": 60},
+                callback=self.parse,
+                errback=self.errback,
+            )
 
     async def errback(self, failure):
         self.logger.warning(f"Request failed for {failure.request.url} with exception: {repr(failure.value)}")
-        
+            
