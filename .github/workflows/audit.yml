@@ -3,11 +3,11 @@ name: Professional SEO Audit
 on:
   workflow_dispatch:
     inputs:
-      auditurl:
-        description: 'URL to audit (e.g. https://example.com)'
+      audit_url:
+        description: 'URL to audit (e.g., https://example.com)'
         required: true
         default: ''
-      auditlevel:
+      audit_level:
         description: 'Audit level (basic, standard, advanced)'
         required: true
         type: choice
@@ -16,16 +16,16 @@ on:
           - standard
           - advanced
         default: standard
-      auditscope:
+      audit_scope:
         description: 'Crawl scope'
         required: true
         type: choice
         options:
-          - onlyonpage
-          - onpageandindexpages
-          - fullsite300pages
-        default: fullsite300pages
-      competitorurl:
+          - only_onpage
+          - onpage_and_index_pages
+          - full_site_300_pages
+        default: full_site_300_pages
+      competitor_url:
         description: 'Competitor URL for comparison (optional)'
         required: false
         default: ''
@@ -33,6 +33,7 @@ on:
 jobs:
   run-audit:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -45,7 +46,9 @@ jobs:
       - name: Install system dependencies for Playwright
         run: |
           sudo apt-get update
-          sudo apt-get install -y libglib2.0-0 libnss3 libfontconfig1 libcups2 libxtst6 libxss1 libgbm-dev libasound2t64 libffi-dev libx264-dev
+          sudo apt-get install -y \
+            libglib2.0-0 libnss3 libfontconfig1 libcups2 libxtst6 libxss1 libgbm-dev \
+            libasound2-data libasound2-plugins libpulse0 libffi-dev libx264-dev
 
       - name: Install Python dependencies and corpora
         run: |
@@ -57,15 +60,16 @@ jobs:
 
       - name: Run SEO Audit
         env:
-          AUDITURL: ${{ github.event.inputs.auditurl }}
-          AUDITLEVEL: ${{ github.event.inputs.auditlevel }}
-          AUDITSCOPE: ${{ github.event.inputs.auditscope }}
-          COMPETITORURL: ${{ github.event.inputs.competitorurl }}
+          AUDIT_URL: ${{ github.event.inputs.audit_url }}
+          AUDIT_LEVEL: ${{ github.event.inputs.audit_level }}
+          AUDIT_SCOPE: ${{ github.event.inputs.audit_scope }}
+          COMPETITOR_URL: ${{ github.event.inputs.competitor_url }}
         run: python main.py
 
       - name: Upload SEO Audit Reports
         uses: actions/upload-artifact@v4
         with:
-          name: seo-audit-reports-${{ github.event.inputs.auditlevel }}-${{ github.event.inputs.auditscope }}
+          name: seo-audit-reports-${{ github.event.inputs.audit_level }}-${{ github.event.inputs.audit_scope }}
           path: reports
           retention-days: 7
+          
