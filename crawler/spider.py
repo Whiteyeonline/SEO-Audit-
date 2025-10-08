@@ -1,26 +1,18 @@
 import scrapy
 from urllib.parse import urlparse, urljoin
 import logging
-
-from checks import (
-    ssl_check, robots_sitemap, performance_check, keyword_analysis,
-    local_seo_check, meta_check, heading_check, image_check, link_check,
-    schema_check, url_structure, internal_links, canonical_check,
-    content_quality, accessibility_check, mobile_friendly_check,
-    backlinks_check, analytics_check
-)
+from checks import *
 
 ALL_CHECKS_MODULES = [
-    ssl_check, robots_sitemap, performance_check, keyword_analysis,
-    local_seo_check, meta_check, heading_check, image_check, link_check,
-    schema_check, url_structure, internal_links, canonical_check,
-    content_quality, accessibility_check, mobile_friendly_check,
-    backlinks_check, analytics_check
+    sslcheck, robotssitemap, performancecheck, keywordanalysis,
+    localseocheck, metacheck, headingcheck, imagecheck, linkcheck,
+    schemacheck, urlstructure, internallinks, canonicalcheck,
+    contentquality, accessibilitycheck, mobilefriendlycheck,
+    backlinkscheck, analyticscheck
 ]
 
 class SEOSpider(scrapy.Spider):
-    name = "seo_spider"
-
+    name = "seospider"
     custom_settings = {
         "PLAYWRIGHT_DEFAULT_NAVIGATION_TIMEOUT": 30000,
         "PLAYWRIGHT_LAUNCH_OPTIONS": {"headless": True},
@@ -31,98 +23,81 @@ class SEOSpider(scrapy.Spider):
         "TWISTED_REACTOR": "twisted.internet.asyncioreactor.AsyncioSelectorReactor",
         "CONCURRENT_REQUESTS": 2,
         "DOWNLOAD_DELAY": 3,
-        "LOG_LEVEL": "INFO",
+        "LOG_LEVEL": "INFO"
     }
 
-    def __init__(self, start_url=None, max_pages_config=25, *args, **kwargs):
+    def __init__(self, starturl=None, maxpagesconfig=25, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        if not start_url:
-            raise ValueError("start_url must be provided")
-        self.start_urls = [start_url]
-        self.allowed_domains = [urlparse(start_url).netloc]
-        self.max_pages = max_pages_config
-        self.pages_crawled = 0
+        if not starturl:
+            raise ValueError("starturl must be provided")
+        self.starturls = [starturl]
+        self.allowed_domains = [urlparse(starturl).netloc]
+        self.maxpages = maxpagesconfig
+        self.pagescrawled = 0
         self.visited = set()
 
     def start_requests(self):
-        for url in self.start_urls:
-            self.logger.info(f"Starting crawl at {url}")
+        for url in self.starturls:
+            self.logger.info(f"Starting crawl at url: {url}")
             yield scrapy.Request(
                 url,
-                meta={
-                    "playwright": True,
-                    "download_timeout": 60,
-                },
+                meta={"playwright": True, "download_timeout": 60},
                 callback=self.parse,
                 errback=self.errback,
             )
 
     async def parse(self, response):
         url = response.url
-
         if url in self.visited:
-            self.logger.debug(f"Skipping visited URL: {url}")
+            self.logger.debug(f"Skipping visited URL {url}")
             return
-        if self.pages_crawled >= self.max_pages:
-            self.logger.info(f"Reached max pages limit: {self.max_pages}")
+        if self.pagescrawled >= self.maxpages:
+            self.logger.info(f"Reached max pages limit {self.maxpages}")
             return
-
         self.visited.add(url)
-        self.pages_crawled += 1
-        self.logger.info(f"Crawling page {self.pages_crawled}: {url}")
+        self.pagescrawled += 1
+        self.logger.info(f"Crawling page {self.pagescrawled}: {url}")
 
-        page = response.meta['playwright_page']
-        await page.wait_for_selector('body', timeout=15000)
-        html_content = await page.content()
-        await page.close()
+        page = response.meta.get("playwright_page")
+        if page:
+            await page.wait_for_selector("body", timeout=15000)
+            html_content = await page.content()
+            await page.close()
+        else:
+            html_content = response.text
 
-        # Run all 18 SEO checks
-        check_results = {}
-        for check_module in ALL_CHECKS_MODULES:
+        checkresults = {}
+        # Run all checks async where possible, otherwise fallback to sync
+        for checkmodule in ALL_CHECKS_MODULES:
             try:
-                # Assuming each module exposes an async run(url, html_content) function
-                result = await check_module.run(url, html_content)
-                check_results[check_module.__name__] = result
+                result = await checkmodule.run_url(url, html_content) if hasattr(checkmodule, "async_run_url") else checkmodule.run_url(url, html_content)
+                checkresults[checkmodule.__name__] = result
             except Exception as e:
-                self.logger.error(f"Check {check_module.__name__} failed on {url}: {e}")
-                check_results[check_module.__name__] = {"error": str(e)}
+                self.logger.error(f"Check {checkmodule.__name__} failed on URL {url}: {str(e)}")
+                checkresults[checkmodule.__name__] = {"error": str(e)}
 
-        page_data = {
+        pagedata = {
             "url": url,
-            "status_code": response.status,
-            "checks": check_results,
-            "is_crawlable": response.status == 200
+            "statuscode": response.status,
+            "checks": checkresults,
+            "iscrawlable": response.status == 200
         }
+        yield pagedata
 
-        yield page_data
-
-        if self.pages_crawled >= self.max_pages:
-            return
-
-        base_url = f"{url.split('?')[0].rstrip('/')}"
-        hrefs = response.css('a::attr(href)').getall()
+        # Enqueue more URLs (limit to domain and not previously visited)
+        baseurl = url.split("?")[0].rstrip("/")
+        hrefs = response.css("a::attr(href)").getall()
         for href in hrefs:
             if not href:
                 continue
-            absolute_url = urljoin(base_url, href.strip())
+            absolute_url = urljoin(baseurl, href.strip())
             parsed_href = urlparse(absolute_url)
-            if parsed_href.scheme not in ("http", "https"):
-                continue
-            if parsed_href.netloc != self.allowed_domains[0]:
+            if parsed_href.scheme not in ("http", "https") or parsed_href.netloc != self.allowed_domains[0]:
                 continue
             if absolute_url in self.visited:
                 continue
-
-            yield scrapy.Request(
-                absolute_url,
-                meta={
-                    "playwright": True,
-                    "download_timeout": 60,
-                },
-                callback=self.parse,
-                errback=self.errback,
-            )
+            yield scrapy.Request(absolute_url, meta={"playwright": True, "download_timeout": 60}, callback=self.parse, errback=self.errback)
 
     async def errback(self, failure):
-        self.logger.warning(f"Request failed: {failure.request.url} with exception {repr(failure.value)}")
-    
+        self.logger.warning(f"Request failed for {failure.request.url} with exception: {repr(failure.value)}")
+        
