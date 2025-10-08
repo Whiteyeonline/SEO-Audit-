@@ -69,4 +69,3 @@ jobs:
           name: seo-audit-reports-${{ github.event.inputs.auditlevel }}-${{ github.event.inputs.auditscope }}
           path: reports
           retention-days: 7
-          
