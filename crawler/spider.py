@@ -1,116 +1,79 @@
 import scrapy
 from urllib.parse import urlparse, urljoin
 import logging
-
-from checks import (
-    ssl_check, robots_sitemap, performance_check, keyword_analysis,
-    local_seo_check, meta_check, heading_check, image_check, link_check,
-    schema_check, url_structure, internal_links, canonical_check,
-    content_quality, accessibility_check, mobile_friendly_check,
-    backlinks_check, analytics_check
-)
-
-ALL_CHECKS_MODULES = [
-    ssl_check, robots_sitemap, performance_check, keyword_analysis,
-    local_seo_check, meta_check, heading_check, image_check, link_check,
-    schema_check, url_structure, internal_links, canonical_check,
-    content_quality, accessibility_check, mobile_friendly_check,
-    backlinks_check, analytics_check
-]
+# All check modules are now passed to the spider via arguments
+# from main.py, so we remove the large block of imports and definition here
 
 class SEOSpider(scrapy.Spider):
     name = "seospider"
+    # Settings are handled by the main.py file's CrawlerProcess
     custom_settings = {
-        "PLAYWRIGHT_DEFAULT_NAVIGATION_TIMEOUT": 30000,
-        "PLAYWRIGHT_LAUNCH_OPTIONS": {"headless": True},
-        "DOWNLOAD_HANDLERS": {
-            "http": "scrapy_playwright.handler.ScrapyPlaywrightDownloadHandler",
-            "https": "scrapy_playwright.handler.ScrapyPlaywrightDownloadHandler",
-        },
-        "TWISTED_REACTOR": "twisted.internet.asyncioreactor.AsyncioSelectorReactor",
-        "CONCURRENT_REQUESTS": 2,
-        "DOWNLOAD_DELAY": 3,
-        "LOG_LEVEL": "INFO"
-    }
+        "PLAYWRIGHT_DEFAULT_NAVIGATION_TIMEOUT": 30000, 
+    } 
 
-    def __init__(self, start_url=None, max_pages_config=25, *args, **kwargs):
+    def __init__(self, start_url=None, max_pages_config=25, all_checks=[], *args, **kwargs):
         super().__init__(*args, **kwargs)
         if not start_url:
-            raise ValueError("start_url must be provided")
+            raise ValueError("A start URL is required.")
+            
         self.start_urls = [start_url]
         self.allowed_domains = [urlparse(start_url).netloc]
-        self.max_pages = max_pages_config
+        self.max_pages_config = max_pages_config
         self.pages_crawled = 0
-        self.visited = set()
+        
+        # Get settings from Scrapy settings set in main.py
+        self.audit_level = self.settings.get('AUDIT_LEVEL', 'standard') 
+        self.audit_scope = self.settings.get('AUDIT_SCOPE', 'only_onpage') 
+        self.all_checks_modules = all_checks # The list of check modules passed from main.py
 
     def start_requests(self):
+        # Initial request uses Playwright for JavaScript rendering
         for url in self.start_urls:
-            self.logger.info(f"Starting crawl at url: {url}")
-            yield scrapy.Request(
-                url,
-                meta={"playwright": True, "download_timeout": 60},
-                callback=self.parse,
-                errback=self.errback,
-            )
+            # We are using the Playwright handler to ensure dynamic content is available
+            yield scrapy.Request(url, callback=self.parse, meta={'playwright': True}) 
 
-    async def parse(self, response):
-        url = response.url
-        if url in self.visited:
-            self.logger.debug(f"Skipping visited URL {url}")
-            return
-        if self.pages_crawled >= self.max_pages:
-            self.logger.info(f"Reached max pages limit {self.max_pages}")
-            return
-        self.visited.add(url)
+    def parse(self, response):
         self.pages_crawled += 1
-        self.logger.info(f"Crawling page {self.pages_crawled}: {url}")
+        logging.info(f"Crawled page {self.pages_crawled}/{self.max_pages_config}: {response.url}")
 
-        page = response.meta.get("playwright_page")
-        if page:
-            await page.wait_for_selector("body", timeout=15000)
-            html_content = await page.content()
-            await page.close()
-        else:
-            html_content = response.text
-
-        check_results = {}
-        for check_module in ALL_CHECKS_MODULES:
-            try:
-                if hasattr(check_module, "async_run_url"):
-                    result = await check_module.async_run_url(url, html_content)
-                else:
-                    result = check_module.run_url(url, html_content)
-                check_results[check_module.__name__] = result
-            except Exception as e:
-                self.logger.error(f"Check {check_module.__name__} failed on URL {url}: {str(e)}")
-                check_results[check_module.__name__] = {"error": str(e)}
-
-        page_data = {
-            "url": url,
-            "status_code": response.status,
-            "checks": check_results,
-            "is_crawlable": response.status == 200
+        page_audit_results = {
+            'url': response.url,
+            'status_code': response.status,
+            'checks': {},
+            'is_crawlable': True
         }
-        yield page_data
 
-        base_url = url.split("?")[0].rstrip("/")
-        hrefs = response.css("a::attr(href)").getall()
-        for href in hrefs:
-            if not href:
-                continue
-            absolute_url = urljoin(base_url, href.strip())
-            parsed_href = urlparse(absolute_url)
-            if parsed_href.scheme not in ("http", "https") or parsed_href.netloc != self.allowed_domains[0]:
-                continue
-            if absolute_url in self.visited:
-                continue
-            yield scrapy.Request(
-                absolute_url,
-                meta={"playwright": True, "download_timeout": 60},
-                callback=self.parse,
-                errback=self.errback,
-            )
+        # --- CRITICAL FIX: Run Checks using the new 'run_audit' function ---
+        for check_module in self.all_checks_modules:
+            module_name = check_module.__name__
+            try:
+                # The fix is to assume a proper function name and structure that accepts response
+                # YOU MUST IMPLEMENT run_audit(response, audit_level) in every checks module
+                check_results = check_module.run_audit(response, self.audit_level) 
+                page_audit_results['checks'][module_name] = check_results
+            except AttributeError:
+                # Provides a helpful error if the user forgets to implement the function
+                page_audit_results['checks'][module_name] = {
+                    'error': f"MODULE ERROR: Check module '{module_name}' is missing the required 'run_audit(response, audit_level)' function. Please implement it."
+                }
+            except Exception as e:
+                # Catches any other exceptions during the check process
+                page_audit_results['checks'][module_name] = {'error': f"Unhandled exception during check: {str(e)}"}
+        # --- End CRITICAL FIX ---
 
-    async def errback(self, failure):
-        self.logger.warning(f"Request failed for {failure.request.url} with exception: {repr(failure.value)}")
-            
+        yield page_audit_results # Export the results
+
+        # Link following logic for deep crawl scopes
+        if self.pages_crawled < self.max_pages_config and self.audit_scope != 'only_onpage':
+            # Follow all internal links found on the page
+            for href in response.css('a::attr(href)').getall():
+                url = urljoin(response.url, href)
+                parsed_url = urlparse(url)
+                
+                # Only follow links that are on the same domain and have not been crawled/queued
+                if parsed_url.netloc == self.allowed_domains[0] and parsed_url.scheme in ['http', 'https']:
+                    # Use a unique key to prevent re-queuing the same URL multiple times
+                    request_key = scrapy.Request(url, callback=self.parse, meta={'playwright': True}).url
+                    if request_key not in response.request.cb_kwargs.get('visited_urls', {}):
+                        # Use Playwright for all subsequent requests to handle JS pages
+                        yield scrapy.Request(url, callback=self.parse, meta={'playwright': True, 'visited_urls': response.request.cb_kwargs.get('visited_urls', {}).copy() | {request_key: True}})
