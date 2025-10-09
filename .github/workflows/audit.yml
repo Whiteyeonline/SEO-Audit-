@@ -1,32 +1,31 @@
-name: Professional SEO Audit
+name: SEO Audit
 
 on:
   workflow_dispatch:
     inputs:
       audit_url:
-        description: 'URL to audit (e.g., https://example.com)'
+        description: 'The URL to audit (required)'
         required: true
-        default: ''
+        default: 
       audit_level:
-        description: 'Audit level (basic, standard, advanced)'
+        description: 'The SEO audit level (Basic or Standard)'
         required: true
+        default: 'standard'
         type: choice
         options:
           - basic
           - standard
-          - advanced
-        default: standard
       audit_scope:
-        description: 'Crawl scope'
+        description: 'The scope and depth of the audit:'
         required: true
+        default: 'only_onpage'
         type: choice
         options:
-          - only_onpage
-          - onpage_and_index_pages
-          - full_site_300_pages
-        default: full_site_300_pages
+          - only_onpage # Basic On-Page Audit (Homepage only)
+          - indexed_pages # On-Page & pages found in sitemap/index (Limit 25 pages)
+          - full_300_pages # Full SEO Audit (Deep Crawl of 300 pages, On-Page & Indexed pages included)
       competitor_url:
-        description: 'Competitor URL for comparison (optional)'
+        description: 'Competitor URL for competitive analysis (optional)'
         required: false
         default: ''
 
@@ -54,11 +53,12 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt --upgrade
+          # Installs the web browser necessary for Scrapy-Playwright (for JS rendering)
           playwright install --with-deps
           python -m textblob.download_corpora
           python -m nltk.downloader punkt
 
-      - name: Run SEO Audit
+      - name: Run SEO Audit (Handles JS pages)
         env:
           AUDIT_URL: ${{ github.event.inputs.audit_url }}
           AUDIT_LEVEL: ${{ github.event.inputs.audit_level }}
@@ -70,6 +70,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: seo-audit-reports-${{ github.event.inputs.audit_level }}-${{ github.event.inputs.audit_scope }}
-          path: reports
-          retention-days: 7
+          path: reports/
           
