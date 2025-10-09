@@ -1,12 +1,16 @@
-Scrapy>=2.11.0
-scrapy-playwright>=0.0.44
-requests>=2.31.0
-beautifulsoup4>=4.12.3
-lxml>=5.1.0
-parsel>=1.8.1
-tldextract==3.5.0
-validators>=0.22.0
+# Core Scrapy and Crawler Dependencies
+Scrapy>=2.11.1
+# CRITICAL: For handling JavaScript/Dynamic content pages
+scrapy-playwright>=0.17.0
+# Core libraries for text analysis and reporting (used in report_writer.py)
 textblob>=0.18.0
-textstat>=0.7.1
 nltk>=3.8.1
-playwright>=1.41.0
+
+# General utility libraries (likely already in use)
+lxml>=4.9.3
+requests>=2.31.0
+tldextract>=3.5.1
+beautifulsoup4>=4.12.3
+
+# Development/Debug (optional but recommended)
+ipdb>=0.13.13
