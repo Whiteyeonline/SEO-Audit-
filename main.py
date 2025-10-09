@@ -13,6 +13,7 @@ from checks import (
     backlinks_check, analytics_check
 )
 
+# ALL_CHECKS_MODULES is used by the SEOSpider to run every check on every crawled page.
 ALL_CHECKS_MODULES = [
     ssl_check, robots_sitemap, performance_check, keyword_analysis,
     local_seo_check, meta_check, heading_check, image_check, link_check,
@@ -28,7 +29,9 @@ CUSTOM_SETTINGS = {
     'DOWNLOAD_TIMEOUT': 60,
     'CLOSESPIDER_PAGECOUNT': 250,
     'TELNET_ENABLED': False,
+    # This reactor is required for Scrapy-Playwright to work properly
     'TWISTED_REACTOR': 'twisted.internet.asyncioreactor.AsyncioSelectorReactor',
+    # Enables Playwright for handling JavaScript/Dynamic Content
     'DOWNLOAD_HANDLERS': {
         'http': 'scrapy_playwright.handler.ScrapyPlaywrightDownloadHandler',
         'https': 'scrapy_playwright.handler.ScrapyPlaywrightDownloadHandler',
@@ -37,6 +40,7 @@ CUSTOM_SETTINGS = {
         'headless': True,
         'timeout': 60000,
     },
+    # Feed Export Settings for the crawl results
     'FEED_FORMAT': 'json',
     'FEED_URI': 'reports/crawl_results.json',
     'FEED_EXPORT_ENCODING': 'utf-8',
@@ -47,31 +51,46 @@ CUSTOM_SETTINGS = {
 def main():
     try:
         AUDIT_URL = os.environ['AUDIT_URL']
-        AUDIT_LEVEL = os.environ.get('AUDIT_LEVEL', 'basic')
+        # Limited to 'basic' and 'standard' as requested. Default is 'standard'.
+        AUDIT_LEVEL = os.environ.get('AUDIT_LEVEL', 'standard') 
         COMPETITOR_URL = os.environ.get('COMPETITOR_URL', '')
-        AUDIT_SCOPE = os.environ.get('AUDIT_SCOPE', 'only_onpage')
+        # Uses the new scope names defined in the GitHub workflow
+        AUDIT_SCOPE = os.environ.get('AUDIT_SCOPE', 'only_onpage') 
     except KeyError:
         print("Error: AUDIT_URL environment variable is not set.")
         return
 
     os.makedirs('reports', exist_ok=True)
     settings = Settings(CUSTOM_SETTINGS)
+    
+    # CRITICAL UPDATE: Set AUDIT_LEVEL and AUDIT_SCOPE in settings so the spider can access them
+    settings.set('AUDIT_LEVEL', AUDIT_LEVEL)
+    settings.set('AUDIT_SCOPE', AUDIT_SCOPE) 
+    
+    # Configure the page limit based on the requested audit scope
     if AUDIT_SCOPE == 'only_onpage':
         settings.set('CLOSESPIDER_PAGECOUNT', 1)
-    elif AUDIT_SCOPE == 'onpage_and_index_pages':
+    elif AUDIT_SCOPE == 'indexed_pages': # New Scope Name
         settings.set('CLOSESPIDER_PAGECOUNT', 25)
-    elif AUDIT_SCOPE == 'full_site_300_pages':
+    elif AUDIT_SCOPE == 'full_300_pages': # New Scope Name
         settings.set('CLOSESPIDER_PAGECOUNT', 300)
-
+    
     max_pages_count = settings.getint('CLOSESPIDER_PAGECOUNT')
+
     process = CrawlerProcess(settings)
-    process.crawl(SEOSpider, start_url=AUDIT_URL, max_pages_config=max_pages_count)
+    # Pass the ALL_CHECKS_MODULES list to the spider's settings
+    process.crawl(SEOSpider, start_url=AUDIT_URL, max_pages_config=max_pages_count, all_checks=ALL_CHECKS_MODULES) 
+
     print(f"\nStarting SEO Audit for {AUDIT_URL}...")
-    print(f"Scope: {AUDIT_SCOPE} (Max pages: {max_pages_count})\n")
+    print(f"Level: {AUDIT_LEVEL.capitalize()} | Scope: {AUDIT_SCOPE.replace('_', ' ')} (Max pages: {max_pages_count})\n")
+    
     process.start()
 
+    # --- Report Generation Logic (Unchanged) ---
     crawl_results = []
-    crawl_file_path = CUSTOM_SETTINGS['FEED_URI']
+    crawl_file_path = settings.get('FEED_URI')
+    
+    # ... (omitting remaining file reading/report generation logic which was provided in the source)
     if os.path.exists(crawl_file_path) and os.path.getsize(crawl_file_path) > 0:
         try:
             with open(crawl_file_path, 'r', encoding='utf-8') as f:
@@ -87,12 +106,14 @@ def main():
     initial_checks = next((item['checks'] for item in crawl_results if item.get('url') == 'INITIAL_CHECKS'), {})
     crawled_pages = [item for item in crawl_results if item.get('url') != 'INITIAL_CHECKS']
     total_pages_crawled = len(crawled_pages)
-
+    
     if total_pages_crawled == 0 and not initial_checks:
         print("\nCrawl finished, but no pages were successfully scraped beyond initial checks.")
         return
 
     aggregation = get_check_aggregation(crawled_pages)
+    
+    # NOTE: Competitor analysis logic is not implemented in the check modules, but the URL is passed for future use.
     structured_report_data = {
         'audit_details': {
             'target_url': AUDIT_URL,
@@ -105,9 +126,9 @@ def main():
         'total_pages_crawled': total_pages_crawled,
         'aggregated_issues': aggregation,
         'basic_checks': initial_checks,
-        'performance_check': {},  # You can insert performance check data here if needed
+        'performance_check': {}, 
     }
-
+    
     structured_file_path = "reports/seo_audit_structured_report.json"
     with open(structured_file_path, 'w', encoding='utf-8') as f:
         json.dump(structured_report_data, f, indent=4)
@@ -116,9 +137,7 @@ def main():
     markdown_file_path = "reports/seo_professional_report.md"
     write_summary_report(structured_report_data, None, markdown_file_path)
     print(f"\nSummary report saved to: {markdown_file_path}")
-
     print(f"\nPages Crawled: {total_pages_crawled}")
 
 if __name__ == "__main__":
     main()
-                                                           
