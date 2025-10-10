@@ -1,11 +1,14 @@
 import re
 from bs4 import BeautifulSoup
 
-def run(url, html_content):
+# FIX: Changed function name and arguments to match the spider's requirement
+def run_audit(response, audit_level):
     """
-    Detects the presence of common Google Analytics and Google Tag Manager scripts.
+    Detects the presence of common Google Analytics and Google Tag Manager scripts
+    using the Scrapy response object.
     """
-    soup = BeautifulSoup(html_content, "lxml")
+    # Use response.text to get the HTML content
+    soup = BeautifulSoup(response.text, "lxml")
     
     tracking = {
         "google_analytics_found": False,
@@ -30,8 +33,10 @@ def run(url, html_content):
             if "fbq" in script.string or "pixel" in script.string:
                  tracking["other_analytics_found"] = True
             
+    # The audit_level argument is mandatory but not used in this specific check.
     return {
         "tracking_setup": tracking,
+        "analytics_missing": not (tracking["google_analytics_found"] or tracking["google_tag_manager_found"]),
         "note": "Tracking detection is static (HTML only). Event tracking cannot be verified."
-                }
+    }
     
