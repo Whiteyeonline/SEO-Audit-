@@ -6,8 +6,6 @@ import re
 
 def _get_issue_description_map():
     """Maps check keys to human-readable names, priorities, and solutions."""
-    # This dictionary is crucial for generating a professional report.
-    # Add more mappings as you implement more checks.
     return {
         'title_fail_count': {
             'name': 'Missing or Poorly Formatted Title Tag',
@@ -120,9 +118,6 @@ def _calculate_readability(content):
 def get_check_aggregation(crawled_pages):
     """
     Aggregates issue counts across all crawled pages.
-    
-    NOTE: The aggregation logic here relies on the check modules (like meta_check)
-    returning specific keys (e.g., 'title_fail', 'desc_fail').
     """
     aggregation = {
         'total_pages_crawled': len(crawled_pages),
@@ -130,7 +125,8 @@ def get_check_aggregation(crawled_pages):
         'title_fail_count': 0, 'desc_fail_count': 0, 'h1_fail_count': 0,
         'thin_content_count': 0, 'missing_alt_total': 0, 'canonical_mismatch_count': 0,
         'link_broken_total': 0, 'analytics_missing_count': 0, 'mobile_unfriendly_count': 0,
-        # Add more if implemented in checks
+        # Ensure all other keys used in the report are initialized here:
+        'url_not_clean_count': 0, 'nap_fail_count': 0, 'accessibility_fail_count': 0, 
     }
 
     for page in crawled_pages:
@@ -191,12 +187,13 @@ def write_summary_report(report, final_score, md_path):
     issue_map = _get_issue_description_map()
     current_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     
-    # Simple score calculation based on total critical issues
+    # FIX: Use .get(key, 0) to ensure the script doesn't crash 
+    # if the crawl failed and keys are missing from aggregated_issues.
     critical_issues_count = (
-        aggregated_issues['title_fail_count'] + 
-        aggregated_issues['desc_fail_count'] + 
-        aggregated_issues['h1_fail_count'] +
-        aggregated_issues['link_broken_total']
+        aggregated_issues.get('title_fail_count', 0) + 
+        aggregated_issues.get('desc_fail_count', 0) + 
+        aggregated_issues.get('h1_fail_count', 0) +
+        aggregated_issues.get('link_broken_total', 0)
     )
     # A simple scoring model (adjust as needed)
     score = max(100 - (critical_issues_count * 5), 50)
@@ -240,7 +237,8 @@ def write_summary_report(report, final_score, md_path):
     content.append("## 1a. Summary of Key Metrics")
     content.append("| Metric | Total Count |")
     content.append("| :--- | :--- |")
-    content.append(f"| Total Pages Crawled | {aggregated_issues['total_pages_crawled']} |")
+    # This key is guaranteed to exist
+    content.append(f"| Total Pages Crawled | {aggregated_issues.get('total_pages_crawled', 0)} |")
     
     for key, count in aggregated_issues.items():
         if key.endswith('_count') and count > 0:
@@ -350,4 +348,4 @@ def write_summary_report(report, final_score, md_path):
         f.write('\n'.join(content))
     
     print(f"Professional Markdown Report written to {md_path}")
-
+    
