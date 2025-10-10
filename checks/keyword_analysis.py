@@ -1,6 +1,7 @@
 # checks/keyword_analysis.py
 from textblob import TextBlob
 from textstat.textstat import textstatistics
+from bs4 import BeautifulSoup
 
 STOP_WORDS = set(['the', 'a', 'an', 'and', 'or', 'but', 'is', 'are', 'was', 'were', 'of', 'in', 'to', 'for', 'with', 'on', 'at', 'i', 'you', 'your', 'we', 'our', 'it'])
 
@@ -21,7 +22,7 @@ def get_word_frequency(text, top_n=10):
 
 
 def run_checks(title, description, content, h1_tags, level):
-    """Runs all keyword reinforcement checks."""
+    """Runs all keyword reinforcement checks (The original logic)."""
     
     results = {}
     total_words = len(content.split())
@@ -81,4 +82,31 @@ def run_checks(title, description, content, h1_tags, level):
         }
     
     return results
+
+# FIX: The mandatory function signature is implemented here
+def run_audit(response, audit_level):
+    """
+    Wrapper function to extract data from the Scrapy response and run keyword analysis checks.
+    """
+    soup = BeautifulSoup(response.text, "lxml")
+    
+    # 1. Extract Title
+    title = soup.find('title').get_text(strip=True) if soup.find('title') else ""
+
+    # 2. Extract Meta Description
+    desc_tag = soup.find('meta', attrs={'name': 'description'})
+    description = desc_tag.get('content', '') if desc_tag else ""
+
+    # 3. Extract Content (Text after removing noise)
+    # Strip scripts, styles, and other noise
+    content_soup = BeautifulSoup(response.text, "lxml")
+    for script_or_style in content_soup(["script", "style", "header", "footer", "nav"]):
+        script_or_style.decompose()
+    content = content_soup.get_text(separator=' ', strip=True)
+
+    # 4. Extract H1 Tags
+    h1_tags = [h.get_text(strip=True) for h in soup.find_all('h1')]
+    
+    # Run the core logic with the extracted data
+    return run_checks(title, description, content, h1_tags, audit_level)
     
