@@ -9,15 +9,27 @@ class SEOSpider(scrapy.Spider):
         "PLAYWRIGHT_DEFAULT_NAVIGATION_TIMEOUT": 30000, 
     } 
 
-    # --- CRITICAL FIX: Use from_crawler to properly access settings ---
+    # --- THE CRITICAL FIX: Use from_crawler to properly access and pass settings ---
     @classmethod
     def from_crawler(cls, crawler, *args, **kwargs):
-        # Create an instance of the class and attach the crawler's settings
-        instance = super().from_crawler(crawler, *args, **kwargs)
-        instance.settings = crawler.settings
+        # 1. Access the settings object from the crawler
+        settings = crawler.settings
+        
+        # 2. Retrieve the required setting values
+        audit_level = settings.get('AUDIT_LEVEL', 'standard')
+        audit_scope = settings.get('AUDIT_SCOPE', 'only_onpage')
+        
+        # 3. Pass the retrieved values as keyword arguments to the __init__ method
+        # We must call the superclass's from_crawler, and *that* result calls __init__
+        # Scrapy spiders are designed to receive their settings values this way.
+        instance = super().from_crawler(crawler, *args, **kwargs, 
+                                        audit_level=audit_level, 
+                                        audit_scope=audit_scope)
+        
         return instance
 
-    def __init__(self, start_url=None, max_pages_config=25, all_checks=[], *args, **kwargs):
+    # --- Modified __init__ to accept audit_level and audit_scope as arguments ---
+    def __init__(self, start_url=None, max_pages_config=25, all_checks=[], audit_level='standard', audit_scope='only_onpage', *args, **kwargs):
         super().__init__(*args, **kwargs)
         if not start_url:
             raise ValueError("A start URL is required.")
@@ -27,10 +39,12 @@ class SEOSpider(scrapy.Spider):
         self.max_pages_config = max_pages_config
         self.pages_crawled = 0
         
-        # Access settings via the stored attribute
-        self.audit_level = self.settings.get('AUDIT_LEVEL', 'standard') 
-        self.audit_scope = self.settings.get('AUDIT_SCOPE', 'only_onpage') 
+        # Assign the values passed from from_crawler
+        self.audit_level = audit_level 
+        self.audit_scope = audit_scope 
         self.all_checks_modules = all_checks
+        
+        logging.info(f"Spider initialized with Audit Level: {self.audit_level} and Scope: {self.audit_scope}")
 
     def start_requests(self):
         # Initial request uses Playwright for JavaScript rendering
@@ -59,9 +73,9 @@ class SEOSpider(scrapy.Spider):
                 check_results = check_module.run_audit(response, self.audit_level) 
                 page_audit_results['checks'][module_name] = check_results
             except AttributeError as e:
-                # This will capture the 'module has no attribute run_url' error and log it
+                # This will capture the 'module has no attribute run_audit' error and log it
                 page_audit_results['checks'][module_name] = {
-                    'error': f"MODULE ERROR: {e}. Check module '{module_name}' is likely missing the required 'run_audit(response, audit_level)' function. Please update the function name in the checks/{module_name.split('.')[-1]}.py file."
+                    'error': f"MODULE ERROR: {e}. Check module '{module_name}' is likely missing the required **'run_audit(response, audit_level)'** function. Please update the function name in the checks/{module_name.split('.')[-1]}.py file."
                 }
             except Exception as e:
                 page_audit_results['checks'][module_name] = {'error': f"Unhandled exception during check: {str(e)}"}
@@ -77,5 +91,6 @@ class SEOSpider(scrapy.Spider):
                 
                 if parsed_url.netloc == self.allowed_domains[0] and parsed_url.scheme in ['http', 'https']:
                     # Use a new request to crawl the next page
+                    # Ensure we pass meta={'playwright': True} if all subsequent requests need JS rendering
                     yield scrapy.Request(url, callback=self.parse, meta={'playwright': True})
 
