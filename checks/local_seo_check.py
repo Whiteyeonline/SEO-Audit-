@@ -2,25 +2,23 @@ import json
 from lxml import html
 import re
 
-def run(url: str, html_content: str) -> dict:
+# FIX: Changed function name and arguments to match the spider's requirement
+def run_audit(response, audit_level) -> dict:
     """
     Performs Local SEO checks on a single page, focusing on Schema.org,
-    and presence of key local information.
-    
-    :param url: The URL of the page being audited.
-    :param html_content: The HTML content of the page.
-    :return: A dictionary containing the local SEO audit results.
+    and presence of key local information, using the Scrapy response object.
     """
     results = {
         "check_name": "Local SEO & Business Info Check",
-        "url": url,
+        "url": response.url,
         "status": "Pass", 
         "issues": [],
         "details": {}
     }
 
     try:
-        tree = html.fromstring(html_content)
+        # Use response.text to get the HTML content
+        tree = html.fromstring(response.text)
         
         # --- Check 1: Schema.org LocalBusiness Markup ---
         # Look for script tags with application/ld+json containing "LocalBusiness"
@@ -42,14 +40,19 @@ def run(url: str, html_content: str) -> dict:
             results["details"]["schema_status"] = "LocalBusiness Schema Found"
 
         # --- Check 2: NAP (Name, Address, Phone) Presence ---
-        # This is a complex check, providing a simple keyword check placeholder
+        # Get the full text content for the NAP keyword search
+        full_text = tree.text_content()
         
         # Simple keywords to check for contact details
-        contact_keywords = ["address", "phone", "contact", "location"]
-        found_keywords = [kw for kw in contact_keywords if re.search(r'\b' + kw + r'\b', html_content, re.IGNORECASE)]
-
+        contact_keywords = ["address", "phone", "contact", "location", "tel:", "zip code"]
+        found_keywords = [kw for kw in contact_keywords if re.search(r'\b' + re.escape(kw) + r'\b', full_text, re.IGNORECASE)]
+        
+        # Set a flag for the report writer
+        results["nap_fail_count"] = 0
+        
         if len(found_keywords) < 2:
-            results["details"]["nap_status"] = "Potential NAP information is sparse."
+            results["details"]["nap_status"] = "Potential NAP information is sparse. Fewer than 2 contact keywords found."
+            results["nap_fail_count"] = 1
             # Only downgrade status if schema is also missing
             if results["status"] != "Warning":
                  results["status"] = "Info" 
@@ -64,5 +67,6 @@ def run(url: str, html_content: str) -> dict:
         results["status"] = "Error"
         results["issues"].append({"type": "error", "message": f"An error occurred during local SEO check: {e}"})
 
+    # The audit_level argument is mandatory but not used in this specific check.
     return results
-    
+        
