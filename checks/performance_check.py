@@ -1,26 +1,32 @@
-# checks/performance_check.py (Final, Corrected Function Name)
+# checks/performance_check.py
 
 import requests
 import time
 import os
 import json 
+# Scrapy response object is passed in, but the requests library is used for timing
 
-# CRITICAL FIX: The main function name is 'run'
-def run(url):
+# FIX: The main function name is now 'run_audit' and accepts Scrapy arguments
+def run_audit(response, audit_level):
     """
-    Runs a free, internal Server Response Time check (replaces PageSpeed API).
+    Runs a free, internal Server Response Time check (replaces PageSpeed API)
+    using the requests library to measure the time taken to fetch the URL.
     """
     
+    # Use the URL from the Scrapy response object
+    url = response.url 
     response_time = 0.0
     
     try:
         start_time = time.time()
         
         # Use simple GET request for full connection time
-        response = requests.get(url, timeout=10) 
+        # NOTE: Using a different library (requests) to avoid Scrapy's overhead in measurement
+        response_check = requests.get(url, timeout=10) 
         
         end_time = time.time()
-        response_time = round((end_time - start_time) * 1000, 2) # Time in milliseconds
+        # Time in milliseconds, rounded to 2 decimal places
+        response_time = round((end_time - start_time) * 1000, 2)
         
         # Scoring logic based on common industry standards
         if response_time < 500:
@@ -36,7 +42,7 @@ def run(url):
             score = 30
             message = f"Poor: Response time is {response_time}ms. High priority to optimize."
             
-        http_status = response.status_code
+        http_status = response_check.status_code
             
     except requests.exceptions.RequestException as e:
         http_status = 0
@@ -44,13 +50,15 @@ def run(url):
         score = 0
         message = f"Connection error or timeout during performance check: {e}"
 
+    # The audit_level argument is mandatory but not used in this specific check.
     return {
         'check_name': 'Server Response Time (Internal Check)',
         'target_url': url,
+        # Using the same result for both mobile/desktop since this is a server-side metric
         'mobile_score': {'result': result, 'score': score, 'message': message}, 
         'desktop_score': {'result': result, 'score': score, 'message': message},
         'response_time_ms': response_time,
         'http_status': http_status,
         'status': result
-    }
+            }
     
