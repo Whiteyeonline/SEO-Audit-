@@ -1,8 +1,16 @@
 from bs4 import BeautifulSoup
 import re 
 
-def run(url, html_content):
-    soup = BeautifulSoup(html_content, "lxml")
+# FIX: Changed function name and arguments to match the spider's requirement
+def run_audit(response, audit_level):
+    """
+    Runs the accessibility audit check against the Scrapy response object.
+    
+    The spider expects this function name ('run_audit') and signature 
+    (response, audit_level).
+    """
+    # Use response.text to get the HTML content
+    soup = BeautifulSoup(response.text, "lxml")
     issues = []
     
     # 1. Missing Alt Text (re-checked for redundancy/proof)
@@ -21,10 +29,10 @@ def run(url, html_content):
     # Check for skipping heading levels (e.g., H1 followed by H3)
     last_level = 0
     for h in headings:
-        current_level = int(h.name[1]) # h1 -> 1, h2 -> 2
+        # h.name[1] gets the number from 'h1', 'h2', etc.
+        current_level = int(h.name[1])
         
         if last_level == 0:
-            # If no H1 is found, start with the first found heading
             last_level = current_level
             continue
 
@@ -34,5 +42,5 @@ def run(url, html_content):
         
         last_level = current_level
 
+    # The audit_level argument is mandatory but not used in this specific check.
     return {"accessibility_issues": issues}
-            
