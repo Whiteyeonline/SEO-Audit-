@@ -9,12 +9,11 @@ class SEOSpider(scrapy.Spider):
         "PLAYWRIGHT_DEFAULT_NAVIGATION_TIMEOUT": 30000, 
     } 
 
-    # --- CRITICAL FIX 1: Use from_crawler to access settings ---
+    # --- CRITICAL FIX: Use from_crawler to properly access settings ---
     @classmethod
     def from_crawler(cls, crawler, *args, **kwargs):
-        # Create an instance of the class
+        # Create an instance of the class and attach the crawler's settings
         instance = super().from_crawler(crawler, *args, **kwargs)
-        # Store settings for access in __init__
         instance.settings = crawler.settings
         return instance
 
@@ -36,7 +35,9 @@ class SEOSpider(scrapy.Spider):
     def start_requests(self):
         # Initial request uses Playwright for JavaScript rendering
         for url in self.start_urls:
-            yield scrapy.Request(url, callback=self.parse, meta={'playwright': True}) 
+            # Use 'dont_filter' to ensure the initial URL is always requested,
+            # even if it was seen before (e.g., in sitemap checks)
+            yield scrapy.Request(url, callback=self.parse, meta={'playwright': True}, dont_filter=True) 
 
     def parse(self, response):
         self.pages_crawled += 1
@@ -50,14 +51,17 @@ class SEOSpider(scrapy.Spider):
         }
 
         # Run Checks using the 'run_audit' function
+        # This assumes all your checks/*.py files have a function named run_audit(response, audit_level)
         for check_module in self.all_checks_modules:
             module_name = check_module.__name__
             try:
+                # The name of the function MUST be 'run_audit'
                 check_results = check_module.run_audit(response, self.audit_level) 
                 page_audit_results['checks'][module_name] = check_results
-            except AttributeError:
+            except AttributeError as e:
+                # This will capture the 'module has no attribute run_url' error and log it
                 page_audit_results['checks'][module_name] = {
-                    'error': f"MODULE ERROR: Check module '{module_name}' is missing the required 'run_audit(response, audit_level)' function. Please implement it."
+                    'error': f"MODULE ERROR: {e}. Check module '{module_name}' is likely missing the required 'run_audit(response, audit_level)' function. Please update the function name in the checks/{module_name.split('.')[-1]}.py file."
                 }
             except Exception as e:
                 page_audit_results['checks'][module_name] = {'error': f"Unhandled exception during check: {str(e)}"}
@@ -66,12 +70,12 @@ class SEOSpider(scrapy.Spider):
 
         # Link following logic for deep crawl scopes
         if self.pages_crawled < self.max_pages_config and self.audit_scope != 'only_onpage':
+            # Simplified link following to avoid deep recursion issues
             for href in response.css('a::attr(href)').getall():
                 url = urljoin(response.url, href)
                 parsed_url = urlparse(url)
                 
                 if parsed_url.netloc == self.allowed_domains[0] and parsed_url.scheme in ['http', 'https']:
-                    request_key = scrapy.Request(url, callback=self.parse, meta={'playwright': True}).url
-                    if request_key not in response.request.cb_kwargs.get('visited_urls', {}):
-                        yield scrapy.Request(url, callback=self.parse, meta={'playwright': True, 'visited_urls': response.request.cb_kwargs.get('visited_urls', {}).copy() | {request_key: True}})
-                    
+                    # Use a new request to crawl the next page
+                    yield scrapy.Request(url, callback=self.parse, meta={'playwright': True})
+
