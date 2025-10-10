@@ -183,7 +183,12 @@ def write_summary_report(report, final_score, md_path):
     crawled_pages = report['crawled_pages']
     aggregated_issues = report['aggregated_issues']
     basic_checks = report['basic_checks']
-    performance_check = report['performance_check']
+    
+    # --- FIX implemented here (Line 186 in the original traceback) ---
+    # Use .get() to safely access 'performance_check'. 
+    # If the key is missing, it returns an empty dictionary {} instead of crashing.
+    performance_check = report.get('performance_check', {})
+    
     issue_map = _get_issue_description_map()
     current_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     
@@ -348,4 +353,4 @@ def write_summary_report(report, final_score, md_path):
         f.write('\n'.join(content))
     
     print(f"Professional Markdown Report written to {md_path}")
-    
+                
