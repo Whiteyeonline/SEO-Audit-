@@ -1,64 +1,66 @@
-name: SEO Audit
+name: Automated SEO Audit
 
 on:
-  # Allows manual triggering from the GitHub Actions tab
   workflow_dispatch:
     inputs:
       audit_url:
-        description: 'The URL to audit (required)'
+        description: 'URL to audit (e.g., https://example.com)'
         required: true
-        default:
+        type: string
       audit_level:
-        description: 'The SEO audit level (Basic or Standard)'
-        required: true
+        description: 'Audit scope level (standard, advanced)'
+        required: false
         default: 'standard'
         type: choice
         options:
-          - basic
           - standard
+          - advanced
       audit_scope:
-        description: 'The scope and depth of the audit:'
-        required: true
+        description: 'How many pages to crawl (only_onpage, indexed_pages, full_300_pages)'
+        required: false
         default: 'only_onpage'
         type: choice
-        # FIX: Ensure each option is correctly formatted with a hyphen (-)
         options:
-          - only_onpage # Basic On-Page Audit (Homepage only, 1 page limit)
-          - indexed_pages # On-Page & pages found in sitemap/index (Limit 25 pages)
-          - full_300_pages # Full SEO Audit (Deep Crawl, Limit 300 pages)
+          - only_onpage
+          - indexed_pages
+          - full_300_pages
       competitor_url:
-        description: 'Competitor URL for competitive analysis (optional)'
+        description: 'Optional: Competitor URL for comparison'
         required: false
         default: ''
+        type: string
 
 jobs:
-  run-audit:
+  run_seo_audit:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Code
+      - name: Checkout repository code
         uses: actions/checkout@v4
 
-      - name: Setup Python
+      - name: Set up Python 3.10
         uses: actions/setup-python@v5
         with:
-          python-version: '3.9'
+          python-version: '3.10'
 
-      - name: Install system dependencies for Playwright
+      # === CRITICAL STEP FOR PLAYWRIGHT STABILITY IN GITHUB ACTIONS ===
+      # Installs the Linux system dependencies needed for Chromium/Playwright
+      - name: Install Playwright dependencies (Required for browser rendering)
         run: |
           sudo apt-get update
           sudo apt-get install -y \
             libglib2.0-0 libnss3 libfontconfig1 libcups2 libxtst6 libxss1 libgbm-dev \
             libasound2-data libasound2-plugins libpulse0 libffi-dev libx264-dev
 
-      - name: Install Python dependencies and corpora
+      - name: Install Python dependencies and Playwright browser
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt --upgrade
-          # Installs the web browser necessary for Scrapy-Playwright (for JS rendering)
-          playwright install --with-deps
+          # Installs the actual browser executable (Chromium) that Scrapy-Playwright uses
+          playwright install --with-deps 
           python -m textblob.download_corpora
           python -m nltk.downloader punkt
+      # ================================================================
 
       - name: Run SEO Audit (Handles JS pages)
         env:
