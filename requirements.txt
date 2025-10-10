@@ -1,13 +1,14 @@
 # Core Scrapy and Crawler Dependencies
 Scrapy>=2.11.1
-# CRITICAL FIX: Changed version to the latest compatible one (0.0.44) 
-# available for this environment to resolve the 'No matching distribution' error.
+# CRITICAL FIX: Ensures compatibility with the available version in the environment
 scrapy-playwright==0.0.44 
-# Core libraries for text analysis and reporting (used in report_writer.py)
+# Core libraries for text analysis and reporting
 textblob>=0.18.0
 nltk>=3.8.1
+# FIX: Added missing dependency for keyword_analysis.py
+textstat>=0.7.2 
 
-# General utility libraries (likely already in use)
+# General utility libraries
 lxml>=4.9.3
 requests>=2.31.0
 tldextract>=3.5.1
