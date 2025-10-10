@@ -22,13 +22,15 @@ ALL_CHECKS_MODULES = [
     backlinks_check, analytics_check
 ]
 
+# === FINALIZED STABILITY SETTINGS FOR SCRAPY-PLAYWRIGHT ===
 CUSTOM_SETTINGS = {
     'USER_AGENT': 'ProfessionalSEOAgency (+https://github.com/your-repo)',
     'ROBOTSTXT_OBEY': False,
     'LOG_LEVEL': 'INFO',
     'CLOSESPIDER_PAGECOUNT': 250,
     'TELNET_ENABLED': False,
-    # This reactor is required for Scrapy-Playwright to work properly
+    
+    # Required for Scrapy-Playwright
     'TWISTED_REACTOR': 'twisted.internet.asyncioreactor.AsyncioSelectorReactor',
 
     # Enables Playwright for handling JavaScript/Dynamic Content
@@ -38,23 +40,28 @@ CUSTOM_SETTINGS = {
     },
     'PLAYWRIGHT_LAUNCH_OPTIONS': {
         'headless': True,
-        'timeout': 60000,
+        'timeout': 60000, # Browser launch timeout (60s)
     },
     
-    # === CRITICAL FIXES FOR CRAWL STABILITY IN CI/CD ===
-    # 1. Explicitly set Playwright browser type (Chromium is standard).
+    # 1. Explicitly set browser type
     'PLAYWRIGHT_BROWSER_TYPE': 'chromium',
-    # 2. Increase the navigation timeout (90s) for slow-loading pages.
+    # 2. Increase the navigation timeout to 90s for complex pages
     'PLAYWRIGHT_DEFAULT_NAVIGATION_TIMEOUT': 90000, 
-    # 3. Increase the global download timeout to match or exceed the navigation timeout.
+    # 3. Match global download timeout
     'DOWNLOAD_TIMEOUT': 90, 
-    # 4. Prevent retries (set to 0) which can confuse Playwright requests and cause crashes.
+    # 4. Disable retries to prevent state confusion
     'RETRY_TIMES': 0, 
+    
+    # 5. CRITICAL: Force Playwright to wait until network activity is idle (fully rendered)
+    'PLAYWRIGHT_CONTEXT_ARGS': {
+        'viewport': {'width': 1280, 'height': 720},
+        'wait_until': 'networkidle' # Waits for 500ms without new network requests
+    },
     # ===================================================
 
     # Feed Export Settings for the crawl results
     'FEED_FORMAT': 'json',
-    'FEED_URI': 'reports/crawl_results.json', # Scrapy will attempt to write this
+    'FEED_URI': 'reports/crawl_results.json',
     'FEED_EXPORT_ENCODING': 'utf-8',
     'CONCURRENT_REQUESTS': 2,
     'DOWNLOAD_DELAY': 3.0,
@@ -96,10 +103,10 @@ def main():
     
     process.start()
     
-    # --- REPORT GENERATION LOGIC (FIXED TO GUARANTEE FILE CREATION) ---
+    # --- REPORT GENERATION LOGIC ---
     crawl_results = []
     crawl_file_path = settings.get('FEED_URI')
-    error_message = None # Initialize error flag
+    error_message = None 
     
     # 2. Attempt to load crawl results
     if os.path.exists(crawl_file_path) and os.path.getsize(crawl_file_path) > 0:
@@ -108,8 +115,9 @@ def main():
                 crawl_results = json.load(f)
         except json.JSONDecodeError as e:
             logging.error(f"Error decoding crawl results JSON: {e}")
-            error_message = "FATAL ERROR: Failed to decode crawl results file. Data corrupted during crawl."
+            error_message = "FATAL ERROR: Failed to decode crawl results JSON. Data corrupted during crawl."
     else:
+        # This is where your 'Total Pages Crawled: 0' error originates
         error_message = "CRAWL FAILED: The spider did not successfully write any crawl data. Check logs for network or script errors."
         print(f"WARNING: {error_message}")
 
@@ -118,12 +126,9 @@ def main():
     crawled_pages = [item for item in crawl_results if item.get('url') != 'INITIAL_CHECKS']
     total_pages_crawled = len(crawled_pages)
     
-    # Determine aggregation based on available data
     if total_pages_crawled == 0 and not initial_checks and error_message:
-        # If absolutely nothing worked, use a minimal error aggregation
         aggregation = {'total_pages_crawled': 0}
     else:
-        # Otherwise, aggregate whatever partial results we have
         aggregation = get_check_aggregation(crawled_pages)
         
     structured_report_data = {
@@ -138,12 +143,10 @@ def main():
         'total_pages_crawled': total_pages_crawled,
         'aggregated_issues': aggregation,
         'basic_checks': initial_checks,
-        'performance_check': {},
-        'crawl_error': error_message # Include error in report for summary writer
+        'crawl_error': error_message
     }
     
-    # 4. Write both final report files (GUARANTEED TO RUN)
-    # This ensures the 'reports/' directory contains files for the artifact upload.
+    # 4. Write both final report files
     structured_file_path = "reports/seo_audit_structured_report.json"
     with open(structured_file_path, 'w', encoding='utf-8') as f:
         json.dump(structured_report_data, f, indent=4)
@@ -157,4 +160,4 @@ def main():
 
 if __name__ == "__main__":
     main()
-                
+    
