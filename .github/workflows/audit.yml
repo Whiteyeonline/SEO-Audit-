@@ -1,24 +1,26 @@
-name: Automated SEO Audit
+name: SEO Audit Tool
 
+# This workflow allows you to manually trigger the audit from the GitHub Actions tab.
 on:
   workflow_dispatch:
     inputs:
       audit_url:
-        description: 'URL to audit (e.g., https://example.com)'
+        description: 'URL to audit (e.g., https://www.example.com)'
         required: true
-        type: string
+        default: 'https://www.google.com'
       audit_level:
-        description: 'Audit scope level (standard, advanced)'
-        required: false
+        description: 'Audit intensity (basic, standard, full)'
+        required: true
         default: 'standard'
         type: choice
         options:
+          - basic
           - standard
-          - advanced
+          - full
       audit_scope:
-        description: 'How many pages to crawl (only_onpage, indexed_pages, full_300_pages)'
-        required: false
-        default: 'only_onpage'
+        description: 'Crawl scope (only_onpage, indexed_pages, full_300_pages)'
+        required: true
+        default: 'indexed_pages'
         type: choice
         options:
           - only_onpage
@@ -28,31 +30,32 @@ on:
         description: 'Optional: Competitor URL for comparison'
         required: false
         default: ''
-        type: string
 
 jobs:
-  run_seo_audit:
+  seo_audit_job:
     runs-on: ubuntu-latest
-
+    
     steps:
-      - name: Checkout repository code
+      - name: 1. Checkout repository code
         uses: actions/checkout@v4
 
-      - name: Set up Python 3.10
+      - name: 2. Set up Python 3.11
         uses: actions/setup-python@v5
         with:
-          python-version: '3.10'
+          python-version: '3.11'
+          cache: 'pip' # Speeds up subsequent runs
 
-      # === CRITICAL STEP FOR PLAYWRIGHT STABILITY IN GITHUB ACTIONS ===
-      # Installs the Linux system dependencies needed for Chromium/Playwright
-      - name: Install Playwright dependencies (Required for browser rendering)
+      # This step installs the necessary Linux system libraries for Playwright (browser) and lxml (parser).
+      - name: 3. Install necessary system dependencies for Playwright and lxml
         run: |
           sudo apt-get update
-          sudo apt-get install -y \
-            libglib2.0-0 libnss3 libfontconfig1 libcups2 libxtst6 libxss1 libgbm-dev \
+          sudo apt-get install -y --no-install-recommends \
+            libnss3 libxcomposite1 libxcursor1 libxdamage1 libxext6 libxfixes3 libxi6 libxrandr2 libxtst6 libxss1 libgbm-dev \
             libasound2-data libasound2-plugins libpulse0 libffi-dev libx264-dev
 
-      - name: Install Python dependencies and Playwright browser
+      # This step installs all Python packages from requirements.txt (including lxml, Scrapy-Playwright, etc.)
+      # and then downloads the actual Chromium browser needed for the crawl.
+      - name: 4. Install Python dependencies and Playwright browser
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt --upgrade
@@ -60,9 +63,11 @@ jobs:
           playwright install --with-deps 
           python -m textblob.download_corpora
           python -m nltk.downloader punkt
+          
       # ================================================================
 
-      - name: Run SEO Audit (Handles JS pages)
+      - name: 5. Run SEO Audit (Handles JS pages)
+        # Sets the environment variables needed by main.py
         env:
           AUDIT_URL: ${{ github.event.inputs.audit_url }}
           AUDIT_LEVEL: ${{ github.event.inputs.audit_level }}
@@ -70,7 +75,7 @@ jobs:
           COMPETITOR_URL: ${{ github.event.inputs.competitor_url }}
         run: python main.py
 
-      - name: Upload SEO Audit Reports
+      - name: 6. Upload SEO Audit Reports
         uses: actions/upload-artifact@v4
         with:
           name: seo-audit-reports-${{ github.event.inputs.audit_level }}-${{ github.event.inputs.audit_scope }}
