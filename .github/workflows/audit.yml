@@ -5,9 +5,9 @@ on:
   workflow_dispatch:
     inputs:
       audit_url:
-        description: 'URL to audit (e.g., https://www.example.com)'
+        description: 'URL to audit'
         required: true
-        default: 'https://www.google.com'
+        default: 
       audit_level:
         description: 'Audit intensity (basic, standard, full)'
         required: true
@@ -20,7 +20,7 @@ on:
       audit_scope:
         description: 'Crawl scope (only_onpage, indexed_pages, full_300_pages)'
         required: true
-        default: 'indexed_pages'
+        default: 'only_onpage'
         type: choice
         options:
           - only_onpage
