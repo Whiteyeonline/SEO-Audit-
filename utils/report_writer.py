@@ -7,7 +7,7 @@ import re
 import textstat
 
 # NOTE: The existing _calculate_readability function relies on the external 
-# [span_0](start_span)textstat library which is included in your requirements.txt[span_0](end_span).
+# textstat library which is included in your requirements.txt.
 
 def _get_issue_description_map():
     """Maps check keys to human-readable names, priorities, and solutions."""
@@ -15,58 +15,58 @@ def _get_issue_description_map():
         'title_fail_count': {
             'name': 'Missing or Poorly Formatted Title Tag',
             'priority': 'High',
-            [span_1](start_span)'description': 'Pages missing a Title Tag or having one that is too long/short (Optimal: 30-60 characters)[span_1](end_span).',
-            [span_2](start_span)'solution': 'Add unique, compelling title tags (30-60 characters) that include the target keyword at the front[span_2](end_span).'
+            'description': 'Pages missing a Title Tag or having one that is too long/short (Optimal: 30-60 characters).',
+            'solution': 'Add unique, compelling title tags (30-60 characters) that include the target keyword at the front.'
         },
         'desc_fail_count': {
             'name': 'Missing Meta Description',
             'priority': 'High',
-            [span_3](start_span)'description': 'Pages missing a Meta Description (Essential for click-through rate in SERPs)[span_3](end_span).',
-            [span_4](start_span)'solution': 'Add unique, compelling meta descriptions (120-158 characters) that encourage users to click[span_4](end_span).'
+            'description': 'Pages missing a Meta Description (Essential for click-through rate in SERPs).',
+            'solution': 'Add unique, compelling meta descriptions (120-158 characters) that encourage users to click.'
         },
         'h1_fail_count': {
             'name': 'Multiple or Missing H1 Tag',
             'priority': 'High',
-            [span_5](start_span)'description': 'Pages having missing H1 tags or more than one H1 tag (SEO best practice is one H1 per page)[span_5](end_span).',
-            [span_6](start_span)'solution': 'Ensure every page has exactly one descriptive H1 tag that outlines the primary topic[span_6](end_span).'
+            'description': 'Pages having missing H1 tags or more than one H1 tag (SEO best practice is one H1 per page).',
+            'solution': 'Ensure every page has exactly one descriptive H1 tag that outlines the primary topic.'
         },
         'thin_content_count': {
             'name': 'Thin Content Warning',
             'priority': 'Medium',
-            [span_7](start_span)'description': 'Pages with very little unique content (under 200 words)[span_7](end_span).',
-            [span_8](start_span)'solution': 'Significantly increase the unique, high-quality, and useful content on these pages[span_8](end_span).'
+            'description': 'Pages with very little unique content (under 200 words).',
+            'solution': 'Significantly increase the unique, high-quality, and useful content on these pages.'
         },
         'missing_alt_total': {
             'name': 'Images Missing Alt Text',
             'priority': 'Low',
-            [span_9](start_span)'description': 'Images without proper `alt` attributes, harming accessibility and image SEO[span_9](end_span).',
-            [span_10](start_span)'solution': 'Add descriptive `alt` text to all images to aid screen readers and search engines[span_10](end_span).'
+            'description': 'Images without proper `alt` attributes, harming accessibility and image SEO.',
+            'solution': 'Add descriptive `alt` text to all images to aid screen readers and search engines.'
         },
         'link_broken_total': {
             'name': 'Internal or External Broken Links (4XX/5XX)',
             'priority': 'High',
-            [span_11](start_span)'description': 'Links pointing to pages that return an error code (4xx or 5xx)[span_11](end_span).',
-            [span_12](start_span)'solution': 'Update or remove all broken links to preserve link equity and user experience[span_12](end_span).'
+            'description': 'Links pointing to pages that return an error code (4xx or 5xx).',
+            'solution': 'Update or remove all broken links to preserve link equity and user experience.'
         },
         'canonical_mismatch_count': {
             'name': 'Canonical Tag Issues',
             'priority': 'Medium',
-            [span_13](start_span)'description': 'Canonical tags pointing to an incorrect URL or missing entirely on pages that require one (e.g., product filters)[span_13](end_span).',
-            [span_14](start_span)'solution': 'Review canonical tag implementation to ensure it points to the preferred version of the page, preventing duplicate content issues[span_14](end_span).'
+            'description': 'Canonical tags pointing to an incorrect URL or missing entirely on pages that require one (e.g., product filters).',
+            'solution': 'Review canonical tag implementation to ensure it points to the preferred version of the page, preventing duplicate content issues.'
         },
         'mobile_unfriendly_count': {
             'name': 'Mobile Unfriendly Pages',
             'priority': 'High',
-            [span_15](start_span)'description': 'Pages identified as not being fully responsive or mobile-friendly (critical for Google’s Mobile-First Indexing)[span_15](end_span).',
-            [span_16](start_span)'solution': 'Use responsive design principles (CSS media queries) to ensure the layout adapts perfectly to all screen sizes[span_16](end_span).'
+            'description': 'Pages identified as not being fully responsive or mobile-friendly (critical for Google’s Mobile-First Indexing).',
+            'solution': 'Use responsive design principles (CSS media queries) to ensure the layout adapts perfectly to all screen sizes.'
         },
         'analytics_missing_count': {
             'name': 'Missing Analytics/Tracking Code',
             'priority': 'Medium',
-            [span_17](start_span)'description': 'Pages where a Google Analytics or other specified tracking code could not be detected[span_17](end_span).',
-            [span_18](start_span)'solution': 'Ensure the appropriate tracking snippet is placed correctly in the `<head>` section of all pages[span_18](end_span).'
+            'description': 'Pages where a Google Analytics or other specified tracking code could not be detected.',
+            'solution': 'Ensure the appropriate tracking snippet is placed correctly in the `<head>` section of all pages.'
         },
-        # === NEW CHECKS ADDED HERE ===
+        # === NEW CHECKS ===
         'og_tags_fail_count': {
             'name': 'Missing Essential Open Graph Tags',
             'priority': 'Medium',
@@ -85,11 +85,10 @@ def _get_issue_description_map():
             'description': 'The page experienced high download latency, which acts as a proxy for slow server response time (TTFB), impacting Core Web Vitals (LCP).',
             'solution': 'Optimize server-side rendering, reduce initial server response time, and minimize resource load times.'
         }
-        # =============================
     }
 
 def _calculate_readability(content):
-    [span_19](start_span)"""Calculates Flesch-Kincaid Readability Score for a content block[span_19](end_span)."""
+    """Calculates Flesch-Kincaid Readability Score for a content block."""
     if not content or content.isspace():
         return {'flesch_kincaid_score': 0, 'grade_level': 'N/A', 'error': 'No content to analyze'}
     try:
@@ -99,7 +98,7 @@ def _calculate_readability(content):
         if not text:
             return {'flesch_kincaid_score': 0, 'grade_level': 'N/A', 'error': 'Content cleaned to empty string'}
         
-        # [span_20](start_span)This section requires TextBlob and NLTK, which are in your requirements.txt[span_20](end_span)
+        # This section requires TextBlob and NLTK, which are in your requirements.txt
         blob = TextBlob(text)
         sentences = sent_tokenize(text)
         total_words = len(blob.words)
@@ -138,7 +137,7 @@ def _calculate_readability(content):
 
 def get_check_aggregation(crawled_pages):
     """
-    [span_21](start_span)Aggregates issue counts across all crawled pages[span_21](end_span).
+    Aggregates issue counts across all crawled pages.
     """
     aggregation = {
         'total_pages_crawled': len(crawled_pages),
@@ -158,7 +157,7 @@ def get_check_aggregation(crawled_pages):
     for page in crawled_pages:
         page_checks = page.get('checks', {})
 
-        # --- Existing Check Aggregations (from source 22, 23) ---
+        # --- Existing Check Aggregations ---
         meta_data = page_checks.get('checks.meta_check', {})
         if meta_data.get('title_fail') is True:
             aggregation['title_fail_count'] += 1
@@ -214,13 +213,7 @@ def write_summary_report(report, final_score, md_path):
     audit_details = report['audit_details']
     crawled_pages = report['crawled_pages']
     aggregated_issues = report['aggregated_issues']
-    basic_checks = report['basic_checks']
-
-    performance_check = report.get('performance_check', {})
-
-    issue_map = _get_issue_description_map()
-    current_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-
+    
     # Calculate Score: Adjusted to include the new checks in the critical count
     critical_issues_count = (
         aggregated_issues.get('title_fail_count', 0) +
@@ -229,12 +222,15 @@ def write_summary_report(report, final_score, md_path):
         aggregated_issues.get('link_broken_total', 0) +
         aggregated_issues.get('mobile_unfriendly_count', 0)
     )
-    # A simple scoring model (from source 25)
+    # A simple scoring model
     score = max(100 - (critical_issues_count * 5), 50)
+
+    issue_map = _get_issue_description_map()
+    current_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
     content = []
     
-    # --- 1. Report Header (More space added) ---
+    # --- 1. Report Header ---
     content.append("# 💎 PROFESSIONAL SEO AUDIT REPORT\n\n")
     content.append(f"**Date:** {current_time}\n")
     content.append(f"**Target URL:** {audit_details['target_url']}\n")
@@ -243,7 +239,7 @@ def write_summary_report(report, final_score, md_path):
     content.append("---\n\n")
 
 
-    # --- 2. Executive Summary --- (Spacious tables for comfortable reading)
+    # --- 2. Executive Summary ---
     content.append("## 1. Executive Summary: At a Glance\n\n")
     content.append("This section summarizes the overall health and scope of the audit.\n\n")
     
@@ -268,7 +264,7 @@ def write_summary_report(report, final_score, md_path):
     content.append("---\n\n")
 
 
-    # --- 3. Critical Issues & Recommendations --- (Grouped by priority and highly spacious)
+    # --- 3. Critical Issues & Recommendations ---
     content.append("## 2. Critical Issues & Recommendations\n\n")
     content.append("The following issues represent areas with the greatest negative impact on SEO and user experience. **Fixing these first is highly recommended.**\n\n")
 
@@ -303,7 +299,7 @@ def write_summary_report(report, final_score, md_path):
         content.append("\n---\n\n")
     
 
-    # --- 4. Detailed Page-by-Page Audit --- (Structured and Spacious)
+    # --- 4. Detailed Page-by-Page Audit ---
     content.append(f"## 3. Detailed Page-by-Page Audit ({len(crawled_pages)} Pages)\n\n")
     content.append("This section provides granular data for each page crawled. The output is structured to allow comfortable reading for detailed analysis.\n\n")
 
@@ -326,7 +322,7 @@ def write_summary_report(report, final_score, md_path):
 
         # --- Extract and format check results ---
 
-        # [span_22](start_span)META CHECK (Title/Description)[span_22](end_span)
+        # META CHECK (Title/Description)
         meta_data = page_checks.get('checks.meta_check', {})
         if 'title_fail' in meta_data:
             title_status = '✅ PASS'
@@ -338,20 +334,20 @@ def write_summary_report(report, final_score, md_path):
             desc_status = '✅ PASS' if meta_data.get('desc_content') else '❌ MISSING'
             add_detail('Meta', 'Meta Description', desc_status, f"Description: `{meta_data.get('desc_content', 'MISSING...')[:100]}...`")
 
-        # [span_23](start_span)HEADING CHECK (H1)[span_23](end_span)
+        # HEADING CHECK (H1)
         heading_data = page_checks.get('checks.heading_check', {})
         if 'h1_fail' in heading_data:
             h1_status = '✅ PASS' if not heading_data.get('h1_fail') else '❌ FAIL'
             add_detail('Structure', 'H1 Count', h1_status, f"Found **{heading_data.get('h1_count', 0)}** H1 tags. Must be exactly 1.")
 
-        # [span_24](start_span)CONTENT QUALITY (Word Count)[span_24](end_span)
+        # CONTENT QUALITY (Word Count)
         content_data = page_checks.get('checks.content_quality', {})
         if 'word_count' in content_data:
             word_status = '✅ PASS'
             if content_data.get('word_count', 0) < 200: word_status = '❌ FAIL'
             add_detail('Content', 'Word Count', word_status, f"Found **{content_data.get('word_count', 0)}** words. Thin content warning below 200.")
         
-        # [span_25](start_span)CANONICAL CHECK[span_25](end_span)
+        # CANONICAL CHECK
         canonical_data = page_checks.get('checks.canonical_check', {})
         if 'canonical_url' in canonical_data:
             canonical_status = '✅ PASS'
@@ -360,19 +356,17 @@ def write_summary_report(report, final_score, md_path):
             match_status = 'Yes' if canonical_data.get('canonical_mismatch') is False else 'No/Missing'
             add_detail('Technical', 'Canonical Tag', canonical_status, f"Tag: `{canonical_data.get('canonical_url', 'N/A')}`. Matches Page URL: {match_status}.")
 
-        # [span_26](start_span)LINK CHECK (Broken Links)[span_26](end_span)
+        # LINK CHECK (Broken Links)
         link_data = page_checks.get('checks.link_check', {})
         if 'broken_link_count' in link_data:
             link_status = '✅ PASS' if link_data.get('broken_link_count', 0) == 0 else '❌ FAIL'
             add_detail('Technical', 'Broken Links', link_status, f"Found **{link_data.get('broken_link_count', 0)}** broken link(s). Sample: {link_data.get('sample_broken_link', 'N/A')}")
         
-        # [span_27](start_span)MOBILE FRIENDLY CHECK[span_27](end_span)
+        # MOBILE FRIENDLY CHECK
         mobile_data = page_checks.get('checks.mobile_friendly_check', {})
         if 'is_mobile_friendly' in mobile_data:
             mobile_status = '✅ PASS' if mobile_data.get('is_mobile_friendly') else '❌ FAIL'
             add_detail('Technical', 'Mobile Friendly', mobile_status, f"Status: {'Friendly' if mobile_data.get('is_mobile_friendly') else 'Not Friendly'}.")
-
-        
 
         # ANALYTICS CHECK
         analytics_data = page_checks.get('checks.analytics_check', {})
@@ -408,7 +402,7 @@ def write_summary_report(report, final_score, md_path):
 
 
     # -----------------------------------------------------
-    # 5. [span_28](start_span)Appendix/Disclaimer[span_28](end_span)
+    # 5. Appendix/Disclaimer
     # -----------------------------------------------------
     content.append("## 4. Disclaimer & Technology Used\n\n")
     content.append("* This report was generated using a custom automated SEO audit tool built entirely with **free, open-source Python libraries** and **GitHub Actions**.\n")
@@ -419,4 +413,4 @@ def write_summary_report(report, final_score, md_path):
     with open(md_path, 'w', encoding='utf-8') as f:
         f.write('\n'.join(content))
     print(f"Professional Markdown Report written to {md_path}")
-            
+    
