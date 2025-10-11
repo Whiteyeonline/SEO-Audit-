@@ -1,88 +1,98 @@
+# checks/canonical_check.py
 from bs4 import BeautifulSoup
 from urllib.parse import urlparse, urlunparse
 
-def normalize_url(url):
+def _clean_url(url):
     """
-    Normalizes a URL by enforcing lowercase scheme/netloc, stripping fragments, 
-    and ensuring trailing slash consistency for reliable comparison.
+    Strips common tracking parameters and fragments from a URL for clean comparison.
     """
     if not url:
-        return None
-    
-    # 1. Parse the URL
+        return url
+        
     parsed = urlparse(url)
+    # Reconstruct the URL without scheme, netloc, params, query, or fragment, 
+    # to only compare the path (for relative canonicals) and clean up.
+    # We strip the fragment (#anchor) and query (?param=value) for canonical comparison.
+    cleaned_url = urlunparse(parsed._replace(fragment='', query=''))
     
-    # 2. Normalize scheme and netloc (e.g., HTTPS, lowercase domain)
-    # We use lower() to ignore case differences in domain name
-    scheme = parsed.scheme.lower()
-    netloc = parsed.netloc.lower()
-    path = parsed.path
-    
-    # 3. Handle trailing slash consistency (remove it for comparison simplicity, unless it's just the root '/')
-    if path.endswith('/') and len(path) > 1:
-        path = path.rstrip('/')
-    
-    # 4. Rebuild the URL without query, params, or fragment (critical for canonical check)
-    normalized_url = urlunparse((scheme, netloc, path, '', '', ''))
-    
-    return normalized_url
+    # Simple check for www. vs non-www and http vs https (often normalized by search engines)
+    # The comparison logic below handles the full normalization needed for the check.
+    return cleaned_url
 
-# FIX: Changed function name and arguments to match the spider's requirement
 def run_audit(response, audit_level):
     """
-    Checks for the presence and correctness of the canonical tag.
-    
-    The check compares the canonical URL found on the page against the page's actual URL, 
-    using normalized versions to avoid false negatives on case/scheme/www differences.
-    It also correctly handles AMP to non-AMP canonical relationships.
+    Runs the Canonical Check:
+    1. Checks for <link rel="canonical"> tag.
+    2. Checks for <link rel="amphtml"> tag (on canonical pages).
+    3. Compares the canonical URL against the current page URL.
     """
     soup = BeautifulSoup(response.text, "lxml")
-    canonical_url = None
-    canonical_mismatch = False
-    note = "Canonical tag should point to the preferred, indexable version of the page."
-
-    # 1. Find the canonical link tag in the head
+    
+    # --- 1. Get Canonical URL ---
     canonical_tag = soup.find('link', rel='canonical')
-
-    # Get the URL that was crawled (the source page)
-    crawled_url_full = response.url
+    canonical_url = canonical_tag.get('href') if canonical_tag else None
     
-    if canonical_tag:
-        canonical_url = canonical_tag.get('href', None)
+    # --- 2. Get AMP HTML URL (for non-AMP pages that have an AMP version) ---
+    amphtml_tag = soup.find('link', rel='amphtml')
+    amphtml_url = amphtml_tag.get('href') if amphtml_tag else None
+    
+    # --- 3. Get AMP Canonical URL (for AMP pages that link back to canonical) ---
+    # AMP pages often include the attribute "html" instead of "canonical" on their canonical link
+    amp_canonical_tag = soup.find('link', rel='canonical')
+    # Use canonical_url found above, which will be the AMP page's canonical URL
+
+    # The current URL being audited
+    current_url = response.url
+
+    # --- Analysis Flags ---
+    is_amp_page = 'amphtml' in current_url.lower() or ('amp' in response.headers.get('Content-Type', '').lower())
+    canonical_mismatch = False
+    note = "PASS: Canonical tag correctly points to the current page or is not necessary."
+
+    # --- Normalize Current URL for Comparison ---
+    # Strip protocol for flexible comparison (e.g., http vs https)
+    normalized_current_url = current_url.replace('https://', '').replace('http://', '').rstrip('/')
+    
+    if canonical_url:
+        normalized_canonical_url = canonical_url.replace('https://', '').replace('http://', '').rstrip('/')
         
-        if canonical_url:
-            # Normalize the crawled URL and the canonical tag URL for robust comparison
-            normalized_crawled_url = normalize_url(crawled_url_full)
-            normalized_tag_url = normalize_url(canonical_url)
+        # Remove "www." from both for flexibility in audit
+        normalized_current_url = normalized_current_url.replace('www.', '')
+        normalized_canonical_url = normalized_canonical_url.replace('www.', '')
+        
+        # --- 4. Core Canonical Comparison Logic ---
+        if normalized_current_url != normalized_canonical_url:
+            canonical_mismatch = True
+            note = f"FAIL: Canonical tag points to a different URL: '{canonical_url}'. This indicates the current page is a duplicate version."
             
-            # Check for mismatch between the URL crawled and the canonical tag's target
-            if normalized_crawled_url != normalized_tag_url:
-                canonical_mismatch = True
-                
-                # FIX: Special Case - AMP to non-AMP is a necessary mismatch, so it's NOT a failure
-                if normalized_crawled_url.endswith('/amp'):
-                    # The canonical tag should point to the normalized non-AMP version
-                    non_amp_normalized_url = normalize_url(crawled_url_full.replace('/amp', '').rstrip('/'))
-                    
-                    if normalized_tag_url == non_amp_normalized_url:
-                        canonical_mismatch = False # This is an expected and correct 'mismatch'
-                        note = "PASS: The crawled page is an AMP URL, and the canonical correctly points to the non-AMP version."
-
-    # Final Status Determination
-    status = "PASS"
-    if not canonical_url:
-        status = "FAIL"
+        else:
+            note = f"PASS: Canonical tag correctly points to the page itself: '{canonical_url}'."
+        
+        # --- AMP Page Specific Check ---
+        if is_amp_page:
+            # On an AMP page, the canonical tag must point to the non-AMP version.
+            # We must check if the current page URL (the AMP page) contains 'amp' but the canonical does not.
+            if 'amp' in current_url.lower() and 'amp' not in canonical_url.lower() and canonical_mismatch:
+                # This is actually a PASS: the AMP page correctly canonicalizes to the non-AMP page.
+                canonical_mismatch = False
+                note = f"PASS: AMP page correctly canonicalizes to non-AMP URL: '{canonical_url}'."
+    else:
+        # No canonical tag found
         canonical_mismatch = True
-        note = "FAIL: No canonical tag found. This can lead to duplicate content issues."
-    elif canonical_mismatch:
-        status = "FAIL"
-        note = f"FAIL: Canonical URL ({canonical_url}) does not match the page's URL ({crawled_url_full}) after normalization."
+        note = "FAIL: No <link rel='canonical'> tag found. This page may be considered duplicate content if it has different URLs pointing to it."
+        
 
-    
+    # --- 5. AMPhtml Link Check (only matters for non-AMP pages) ---
+    amphtml_note = "INFO: No <link rel='amphtml'> tag found."
+    if amphtml_url and not is_amp_page:
+        amphtml_note = f"PASS: Found <link rel='amphtml'> pointing to AMP version: '{amphtml_url}'."
+        
     return {
         "canonical_url": canonical_url,
+        "current_url": current_url,
+        "is_amp_page": is_amp_page,
         "canonical_mismatch": canonical_mismatch,
-        "canonical_check": status,
-        "note": note
-                }
+        "amphtml_url": amphtml_url,
+        "note": f"{note} | {amphtml_note}"
+    }
     
