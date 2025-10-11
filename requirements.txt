@@ -1,18 +1,19 @@
-# Core Scrapy and Crawler Dependencies
-Scrapy>=2.11.1
-# CRITICAL FIX: Ensures compatibility with the available version in the environment
-scrapy-playwright==0.0.44 
-# Core libraries for text analysis and reporting
+# Requirements for the Python SEO Audit Tool
+
+# Core Web Scraping/Crawling
+scrapy>=2.11.0
+scrapy-playwright>=0.19.0 # Ensures modern JS rendering support
+
+# Data Processing and Analysis
+requests>=2.31.0
 textblob>=0.18.0
 nltk>=3.8.1
-# FIX: Added missing dependency for keyword_analysis.py
-textstat>=0.7.2 
+textstat>=0.7.3 # Used for readability checks
+Pillow>=10.0.0
 
-# General utility libraries
-lxml>=4.9.3
-requests>=2.31.0
-tldextract>=3.5.1
+# HTML Parsing and Manipulation
 beautifulsoup4>=4.12.3
+lxml>=4.9.4 # Highly recommended fast parser for BeautifulSoup
 
-# Development/Debug (optional but recommended)
-ipdb>=0.13.13
+# File Handling (if needed, but good practice)
+filelock>=3.13.1
