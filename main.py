@@ -1,3 +1,5 @@
+# main.py
+
 import os
 import json
 import logging
@@ -10,7 +12,11 @@ from checks import (
     local_seo_check, meta_check, heading_check, image_check, link_check,
     schema_check, url_structure, internal_links, canonical_check,
     content_quality, accessibility_check, mobile_friendly_check,
-    backlinks_check, analytics_check
+    backlinks_check, analytics_check,
+    # === NEW CHECKS ADDED ===
+    og_tags_check, 
+    redirect_check, 
+    core_web_vitals_check 
 )
 
 # ALL_CHECKS_MODULES is used by the SEOSpider to run every check on every crawled page.
@@ -19,7 +25,11 @@ ALL_CHECKS_MODULES = [
     local_seo_check, meta_check, heading_check, image_check, link_check,
     schema_check, url_structure, internal_links, canonical_check,
     content_quality, accessibility_check, mobile_friendly_check,
-    backlinks_check, analytics_check
+    backlinks_check, analytics_check,
+    # === NEW CHECKS ADDED ===
+    og_tags_check, 
+    redirect_check, 
+    core_web_vitals_check
 ]
 
 # === FINALIZED STABILITY SETTINGS FOR SCRAPY-PLAYWRIGHT ===
@@ -32,7 +42,6 @@ CUSTOM_SETTINGS = {
     
     # Required for Scrapy-Playwright
     'TWISTED_REACTOR': 'twisted.internet.asyncioreactor.AsyncioSelectorReactor',
-
     # Enables Playwright for handling JavaScript/Dynamic Content
     'DOWNLOAD_HANDLERS': {
         'http': 'scrapy_playwright.handler.ScrapyPlaywrightDownloadHandler',
@@ -51,14 +60,13 @@ CUSTOM_SETTINGS = {
     'DOWNLOAD_TIMEOUT': 90, 
     # 4. Disable retries to prevent state confusion
     'RETRY_TIMES': 0, 
-    
     # 5. CRITICAL: Force Playwright to wait until network activity is idle (fully rendered)
     'PLAYWRIGHT_CONTEXT_ARGS': {
         'viewport': {'width': 1280, 'height': 720},
         'wait_until': 'networkidle' # Waits for 500ms without new network requests
     },
     # ===================================================
-
+    
     # Feed Export Settings for the crawl results
     'FEED_FORMAT': 'json',
     'FEED_URI': 'reports/crawl_results.json',
@@ -84,7 +92,7 @@ def main():
     
     settings.set('AUDIT_LEVEL', AUDIT_LEVEL)
     settings.set('AUDIT_SCOPE', AUDIT_SCOPE)
-    
+
     # Configure the page limit based on the requested audit scope
     if AUDIT_SCOPE == 'only_onpage':
         settings.set('CLOSESPIDER_PAGECOUNT', 1)
@@ -94,20 +102,20 @@ def main():
         settings.set('CLOSESPIDER_PAGECOUNT', 300)
     
     max_pages_count = settings.getint('CLOSESPIDER_PAGECOUNT')
-    
+
     process = CrawlerProcess(settings)
     process.crawl(SEOSpider, start_url=AUDIT_URL, max_pages_config=max_pages_count, all_checks=ALL_CHECKS_MODULES)
 
     print(f"\nStarting SEO Audit for {AUDIT_URL}...")
     print(f"Level: {AUDIT_LEVEL.capitalize()} | Scope: {AUDIT_SCOPE.replace('_', ' ')} (Max pages: {max_pages_count})\n")
-    
+
     process.start()
-    
+
     # --- REPORT GENERATION LOGIC ---
     crawl_results = []
     crawl_file_path = settings.get('FEED_URI')
-    error_message = None 
-    
+    error_message = None
+
     # 2. Attempt to load crawl results
     if os.path.exists(crawl_file_path) and os.path.getsize(crawl_file_path) > 0:
         try:
@@ -125,11 +133,11 @@ def main():
     initial_checks = next((item['checks'] for item in crawl_results if item.get('url') == 'INITIAL_CHECKS'), {})
     crawled_pages = [item for item in crawl_results if item.get('url') != 'INITIAL_CHECKS']
     total_pages_crawled = len(crawled_pages)
-    
+
     if total_pages_crawled == 0 and not initial_checks and error_message:
         aggregation = {'total_pages_crawled': 0}
     else:
-        aggregation = get_check_aggregation(crawled_pages)
+        aggregation = get_check_aggregation(crawled_pages) 
         
     structured_report_data = {
         'audit_details': {
@@ -145,7 +153,7 @@ def main():
         'basic_checks': initial_checks,
         'crawl_error': error_message
     }
-    
+
     # 4. Write both final report files
     structured_file_path = "reports/seo_audit_structured_report.json"
     with open(structured_file_path, 'w', encoding='utf-8') as f:
@@ -153,11 +161,10 @@ def main():
     print(f"\nStructured report saved to: {structured_file_path}")
 
     markdown_file_path = "reports/seo_professional_report.md"
-    write_summary_report(structured_report_data, None, markdown_file_path)
-    
+    write_summary_report(structured_report_data, None, markdown_file_path) 
+
     print(f"\nSummary report saved to: {markdown_file_path}")
     print(f"\nPages Crawled: {total_pages_crawled}")
 
 if __name__ == "__main__":
     main()
-    
