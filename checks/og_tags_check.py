@@ -1,44 +1,31 @@
 # checks/og_tags_check.py
+from bs4 import BeautifulSoup
 
-"""
-Open Graph (OG) Tags Check Module
-Checks for the presence of essential Open Graph meta tags.
-"""
-
-def run_check(response, page_data, report_data):
+def run_audit(response, audit_level):
     """
-    Runs the OG Tags check on the given response.
+    Runs the Open Graph (OG) Tags check.
+    Checks for the presence of essential OG meta tags (og:title, og:type, og:image, og:url).
     """
-    check_name = "og_tags_check"
-    report_data[check_name] = {
-        "status": "PASS",
-        "description": "Checks for essential Open Graph meta tags (og:title, og:type, og:image, og:url).",
-        "details": [],
-        "score_impact": 0
-    }
-
-    # XPath to select Open Graph meta tags
-    # property attribute is often used for OG tags
-    og_tags = response.xpath('//meta[starts-with(@property, "og:")]')
+    soup = BeautifulSoup(response.text, "lxml")
     
-    # Extract existing OG properties for easy lookup
-    existing_og_properties = {tag.attrib.get('property'): tag.attrib.get('content') 
-                              for tag in og_tags if tag.attrib.get('property')}
+    og_tags = soup.find_all('meta', property=lambda value: value and value.startswith('og:'))
+    
+    existing_og_properties = {tag.get('property'): tag.get('content') 
+                              for tag in og_tags if tag.get('property')}
 
     required_tags = ['og:title', 'og:type', 'og:image', 'og:url']
     missing_tags = [tag for tag in required_tags if tag not in existing_og_properties]
     
-    if missing_tags:
-        report_data[check_name]['status'] = "FAIL"
-        report_data[check_name]['score_impact'] = -15  # Negative impact for missing tags
-        report_data[check_name]['details'].append(
-            f"Missing essential Open Graph tags: {', '.join(missing_tags)}."
-        )
-        report_data[check_name]['description'] = "FAIL: Essential Open Graph tags are missing or incomplete."
+    og_tags_missing = bool(missing_tags)
+
+    if og_tags_missing:
+        note = f"FAIL: Missing essential Open Graph tags: {', '.join(missing_tags)}. This negatively impacts social sharing previews."
     else:
-        report_data[check_name]['details'].append(
-            "All essential Open Graph tags (og:title, og:type, og:image, og:url) are present."
-        )
+        note = "PASS: All essential Open Graph tags (og:title, og:type, og:image, og:url) are present."
         
-    return report_data
-  
+    return {
+        "og_tags_missing": og_tags_missing,
+        "missing_tags_list": missing_tags,
+        "note": note
+    }
+    
