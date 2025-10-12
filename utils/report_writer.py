@@ -340,9 +340,9 @@ def write_summary_report(report, final_score, md_path):
                     
                 content.append(_format_check_box(check_name, status, details, 'canonical_mismatch', data.get('note')))
                 
-    
-
-elif key == 'checks.url_structure':
+            # VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV
+            # THIS BLOCK WAS MOVED FROM THE INCORRECT OUTER INDENTATION LEVEL
+            elif key == 'checks.url_structure':
                 if data.get('not_clean'):
                     status = '⚠️ WARN'
                     details = f"URL contains parameters or stop words (e.g., `{urlparse(page_url).path}`)."
@@ -350,6 +350,7 @@ elif key == 'checks.url_structure':
                     status = '✅ PASS'
                     details = f"URL is clean and uses best practices: `{urlparse(page_url).path}`"
                 content.append(_format_check_box(check_name, status, details, 'unclean_url'))
+            # ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
             elif key == 'checks.meta_check':
                 # Split Title and Description for better readability in the new format
@@ -490,3 +491,4 @@ elif key == 'checks.url_structure':
     with open(md_path, 'w', encoding='utf-8') as f:
         f.write('\n'.join(content))
     print(f"Professional Markdown Report written to {md_path}")
+    
