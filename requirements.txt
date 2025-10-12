@@ -1,9 +1,9 @@
-# requirements.txt - FIXED
+# requirements.txt - FINAL
 
 # Core Web Scraping/Crawling
 scrapy>=2.11.0
-# FIXED: The version 0.19.0 does not exist. Using a constraint for the latest 0.0.x series.
 scrapy-playwright<0.1.0
+playwright>=1.47.0  # Added for clarity and environment setup
 
 # Data Processing and Analysis
 requests>=2.31.0
