@@ -10,126 +10,124 @@ from urllib.parse import urlparse
 # NOTE: The existing _calculate_readability function is omitted for brevity but should remain unchanged.
 
 def _get_issue_description_map():
-    """Maps check keys to human-readable names, priorities, and solutions."""
-    # NOTE: The keys here should generally match the aggregation keys in get_check_aggregation 
-    # OR map directly to the specific failure condition.
+    """Maps check keys to human-readable names, priorities, and **enhanced, actionable solutions**."""
+    
+    # 💥 ENHANCED SOLUTIONS FOR SELF-SERVICE CHECKS 💥
     return {
         'title_fail': {
             'name': 'Missing or Poorly Formatted Title Tag',
             'priority': 'High',
             'description': 'Pages missing a Title Tag or having one that is too long/short (Optimal: 30-60 characters).',
-            'solution': 'Add unique, compelling title tags (30-60 characters) that include the target keyword at the front.'
+            'solution': 'For any page, **view the source code** (Ctrl+U or Cmd+Option+U) and locate the `<title>` tag. Ensure its length is 30-60 characters and it is unique across your site.'
         },
         'desc_fail': {
             'name': 'Missing Meta Description',
             'priority': 'High',
             'description': 'Pages missing a Meta Description (Essential for click-through rate in SERPs).',
-            'solution': 'Add unique, compelling meta descriptions (120-158 characters) that encourage users to click.'
+            'solution': 'In the page\'s source code, check the `<meta name="description">` tag. The optimal length is **120-158 characters** to maximize click-through rate in search results.'
         },
         'h1_fail': {
             'name': 'Multiple or Missing H1 Tag',
             'priority': 'High',
             'description': 'Pages having missing H1 tags or more than one H1 tag (SEO best practice is one H1 per page).',
-            'solution': 'Ensure every page has exactly one descriptive H1 tag that outlines the primary topic.'
+            'solution': 'Use your browser\'s **Inspect Element** tool to verify that exactly **one** descriptive `<h1>` tag is present and visible on the page. It should summarize the primary topic.'
         },
         'thin_content': {
             'name': 'Thin Content Warning',
             'priority': 'Medium',
             'description': 'Pages with very little unique content (under 200 words).',
-            'solution': 'Significantly increase the unique, high-quality, and useful content on these pages.'
+            'solution': 'Significantly increase the unique, high-quality, and useful content on these pages. Aim for **over 300 words** of valuable text for informational pages.'
         },
         'missing_alt_images': {
             'name': 'Images Missing Alt Text',
             'priority': 'Low',
             'description': 'Images without proper `alt` attributes, harming accessibility and image SEO.',
-            'solution': 'Add descriptive `alt` text to all images to aid screen readers and search engines.'
+            'solution': 'Use the **Inspect Element** tool on every image to check for the `alt` attribute. Add descriptive, keyword-rich `alt` text to all images to aid screen readers and search engines.'
         },
         'broken_link_count': {
             'name': 'Internal or External Broken Links (4XX/5XX)',
             'priority': 'High',
             'description': 'Links pointing to pages that return an error code (4xx or 5xx).',
-            'solution': 'Update or remove all broken links to preserve link equity and user experience.'
+            'solution': 'Use a reliable link checker tool or a crawl report to identify the source of these broken links and **update or remove** them immediately.'
         },
         'canonical_mismatch': {
             'name': 'Canonical Tag Issues',
             'priority': 'Medium',
             'description': 'Canonical tags pointing to an incorrect URL or missing entirely on pages that require one.',
-            'solution': 'Review canonical tag implementation to ensure it points to the preferred version of the page, preventing duplicate content issues.'
+            'solution': 'Verify the `<link rel="canonical">` tag in the page\'s HTML source code. It **must point to the absolute, preferred version of the page** (the final destination URL after any redirects).'
         },
         'not_mobile_friendly': {
             'name': 'Mobile Unfriendly Pages',
             'priority': 'High',
             'description': 'Pages identified as not being fully responsive (critical for Mobile-First Indexing).',
-            'solution': 'Use responsive design principles to ensure the layout adapts perfectly to all screen sizes.'
+            'solution': 'Ensure the required viewport tag: `<meta name="viewport" content="width=device-width, initial-scale=1">` is present in the `<head>` of the page. Test your site using the **Google Mobile-Friendly Test tool**.'
         },
         'analytics_missing': {
             'name': 'Missing Analytics/Tracking Code',
             'priority': 'Medium',
             'description': 'Pages where a Google Analytics or other specified tracking code could not be detected.',
-            'solution': 'Ensure the appropriate tracking snippet is placed correctly in the `<head>` section of all pages.'
+            'solution': 'Verify that the correct Google Analytics (GA4) or Google Tag Manager (GTM) snippet is placed correctly and unedited in the **`<head>` section** of all pages.'
         },
         'og_tags_missing': {
             'name': 'Missing Essential Open Graph Tags',
             'priority': 'Medium',
             'description': 'Crucial Open Graph tags are missing, leading to poor social media sharing previews.',
-            'solution': 'Implement all essential Open Graph meta tags in the `<head>` section to control how content appears when shared.'
+            'solution': 'Manually share the page link on Facebook or Twitter and check the resulting preview card. Ensure all essential tags (`og:title`, `og:image`, `og:url`) are present in the source code.'
         },
         'was_redirected': {
             'name': 'Unnecessary Page Redirect Detected',
             'priority': 'Low',
             'description': 'A redirect was detected, suggesting a redirect chain or an unnecessary hop.',
-            'solution': 'For permanent changes, ensure a 301 Permanent Redirect is used. Aim for direct access to the final URL.'
+            'solution': 'Use a **free HTTP header checker tool** to trace the redirect path. If the redirect is permanent, ensure it uses a **301 status code** and links directly to the final destination.'
         },
         'cwv_warn': {
             'name': 'Performance Warning (High Latency/TTFB)',
             'priority': 'High',
             'description': 'The page experienced high download latency, which acts as a proxy for slow server response time (TTFB), impacting Core Web Vitals.',
-            'solution': 'Optimize server-side rendering, reduce initial server response time, and minimize resource load times.'
+            'solution': 'Check your Time To First Byte (TTFB) using tools like **WebPageTest** or **GTmetrix**. Focus on optimizing server code, database queries, and using a Content Delivery Network (CDN).'
         },
         'robots_sitemap_fail': {
             'name': 'Robots/Sitemap Issues',
             'priority': 'Medium',
             'description': 'The `robots.txt` or `sitemap.xml` file was not found or contains errors, hindering crawl efficiency.',
-            'solution': 'Verify the correct location and syntax of your `robots.txt`. Ensure a recent `sitemap.xml` file is linked from `robots.txt`.'
+            'solution': 'Verify that your `robots.txt` is accessible at `yourdomain.com/robots.txt` and is not blocking essential files. Ensure your `sitemap.xml` is linked from `robots.txt`.'
         },
         'unclean_url': {
             'name': 'Unclean URL Structure',
             'priority': 'Low',
             'description': 'URLs containing excessive parameters, stop words, or non-ASCII characters.',
-            'solution': 'Keep URLs short, descriptive, and clean. Use hyphens to separate words and include target keywords.'
+            'solution': 'Keep URLs short, descriptive, and clean. Use **hyphens (`-`)** to separate words and include target keywords. Avoid using underscores (`_`) or excessive parameters.'
         },
         'nap_mismatch': {
             'name': 'Local SEO NAP Mismatch',
             'priority': 'Medium',
             'description': 'Mismatched Name, Address, or Phone (NAP) details, confusing local search engines.',
-            'solution': 'Ensure NAP details are 100% consistent across all pages and external directory listings (Google Business Profile, Yelp, etc.).'
+            'solution': 'Ensure your Name, Address, and Phone (NAP) details are **100% consistent** across all pages of your site and all external listings (e.g., Google Business Profile).'
         },
         'accessibility_fail': {
             'name': 'Basic Accessibility Issues',
             'priority': 'Medium',
             'description': 'The page fails basic accessibility checks (e.g., color contrast, focus order), impacting all users.',
-            'solution': 'Follow WCAG guidelines (e.g., use sufficient color contrast, keyboard-navigable elements, and aria attributes) for an inclusive experience.'
+            'solution': 'Use a browser extension (like Lighthouse or a Contrast Checker) to quickly identify and fix issues like low color contrast or missing label attributes on forms.'
         },
         'missing_internal_links': {
             'name': 'Page Lacks Internal Links',
             'priority': 'Low',
             'description': 'The page has very few internal links pointing to it, reducing its visibility and passing link equity.',
-            'solution': 'Contextually link to this page from other high-authority and relevant pages on your site.'
+            'solution': 'Contextually link to this page from **other high-authority and relevant pages** on your site. Aim for at least one or two descriptive anchor text links.'
         },
         'server_response_slow': {
             'name': 'Slow Server Response Time',
             'priority': 'High',
             'description': 'Server response time (TTFB) is too slow, directly impacting page speed and user experience.',
-            'solution': 'Optimize server configuration, use a CDN, and improve database query efficiency to reduce server response time below 200ms.'
+            'solution': 'Optimize server configuration, use a CDN, and improve database query efficiency to reduce server response time **below 200ms**.'
         }
-        # Backlinks check and Schema check are generally informational and handled inline.
     }
 
 
 def get_check_aggregation(crawled_pages):
     """
-    Aggregates issue counts across all crawled pages.
-    (This function remains largely the same, but includes logic for all 21 checks.)
+    Aggregates issue counts across all crawled pages. (No changes needed here).
     """
     # Define a list of ALL check keys for aggregation initialization
     all_agg_keys = [
@@ -171,7 +169,7 @@ def get_check_aggregation(crawled_pages):
 
         # Technical & Structure Checks
         mobile_data = page_checks.get('checks.mobile_friendly_check', {})
-        if mobile_data.get('not_mobile_friendly') is True: aggregation['mobile_unfriendly_count'] += 1
+        if mobile_data.get('mobile_friendly') is False: aggregation['mobile_unfriendly_count'] += 1 # Key is 'mobile_friendly'
         analytics_data = page_checks.get('checks.analytics_check', {})
         if analytics_data.get('analytics_missing') is True: aggregation['analytics_missing_count'] += 1
         og_data = page_checks.get('checks.og_tags_check', {})
@@ -185,6 +183,7 @@ def get_check_aggregation(crawled_pages):
         cwv_data = page_checks.get('checks.core_web_vitals_check', {})
         if cwv_data.get('performance_status') == '⚠️ WARN': aggregation['core_web_vitals_warn_count'] += 1
         perf_data = page_checks.get('checks.performance_check', {})
+        # Assuming mobile_score exists and is used as the primary performance indicator
         if perf_data.get('mobile_score', {}).get('result') != 'Pass': aggregation['server_response_fail_count'] += 1
         a11y_data = page_checks.get('checks.accessibility_check', {})
         if a11y_data.get('accessibility_fail') is True: aggregation['accessibility_fail_count'] += 1
@@ -323,23 +322,27 @@ def write_summary_report(report, final_score, md_path):
             
             elif key == 'checks.canonical_check':
                 if data.get('error'):
-                    # Handle the specific error returned by the robust check function
                     status = '❌ FAIL'
                     details = f"MODULE CRASHED: {data.get('error')}"
                 else:
-                    # Run the normal canonical logic
                     mismatch = data.get('canonical_mismatch', False)
                     canonical_url = data.get('canonical_url', None)
-                    status = '✅ PASS'
-                    if mismatch or canonical_url is None: status = '⚠️ CHECK'
-                    if canonical_url is None: status = '❌ MISSING'
-                    details = f"Canonical URL: `{canonical_url if canonical_url else 'NONE DETECTED'}`. Is on-page URL correct? {data.get('note', 'N/A')}"
+                    
+                    # 💥 FIX: Clearer severity prioritization
+                    if canonical_url is None:
+                        status = '❌ MISSING'
+                    elif mismatch:
+                        status = '⚠️ CHECK'
+                    else:
+                        status = '✅ PASS'
+                        
+                    details = f"Canonical URL: `{canonical_url if canonical_url else 'NONE DETECTED'}`."
                     
                 content.append(_format_check_box(check_name, status, details, 'canonical_mismatch', data.get('note')))
                 
     
 
-            elif key == 'checks.url_structure':
+elif key == 'checks.url_structure':
                 if data.get('not_clean'):
                     status = '⚠️ WARN'
                     details = f"URL contains parameters or stop words (e.g., `{urlparse(page_url).path}`)."
@@ -402,10 +405,14 @@ def write_summary_report(report, final_score, md_path):
                 content.append(_format_check_box(check_name, status, details)) # No specific solution, informational check
 
             elif key == 'checks.mobile_friendly_check':
-                is_mobile = data.get('is_mobile_friendly')
-                status = '❌ FAIL' if not is_mobile else '✅ PASS'
-                details = f"Mobile-Friendly Status: {'Friendly' if is_mobile else 'NOT FRIENDLY'}. Viewport Tag: {data.get('viewport_found', False)}"
-                content.append(_format_check_box(check_name, status, details, 'not_mobile_friendly'))
+                # Key is 'mobile_friendly' from the check file's output
+                is_mobile_friendly = data.get('mobile_friendly')
+                status = '❌ FAIL' if is_mobile_friendly is False else '✅ PASS'
+                # Check for 'issues' array in the check's output for more detail
+                issue_list = data.get('issues', [])
+                issue_details = f"Status: {'Friendly' if is_mobile_friendly else 'NOT FRIENDLY'}. Issues: {', '.join(issue_list) if issue_list else 'None'}"
+                
+                content.append(_format_check_box(check_name, status, issue_details, 'not_mobile_friendly', data.get('note')))
 
             elif key == 'checks.accessibility_check':
                 if data.get('accessibility_fail'):
@@ -430,19 +437,14 @@ def write_summary_report(report, final_score, md_path):
                 cwv_status = data.get('performance_status', 'INFO')
                 status = cwv_status
                 
-                # --- FIX START: Handle float formatting ---
+                # Handling float formatting for latency (as we discussed)
                 latency = data.get('download_latency', 'N/A')
-                
-                # Check if 'latency' is a number and format it to 3 decimal places.
                 if isinstance(latency, (float, int)):
-                    # Use f-string formatting to control decimal precision (e.g., 0.930)
                     latency_str = f"{latency:.3f}"
                 else:
-                    # If it's the fallback 'N/A', keep it as a string
                     latency_str = latency
                 
                 details = f"Download Latency (Proxy for LCP/TTFB): **{latency_str}s**. Review full note."
-                # --- FIX END ---
                 
                 content.append(_format_check_box(check_name, status, details, 'cwv_warn', data.get('note')))
 
@@ -488,6 +490,3 @@ def write_summary_report(report, final_score, md_path):
     with open(md_path, 'w', encoding='utf-8') as f:
         f.write('\n'.join(content))
     print(f"Professional Markdown Report written to {md_path}")
-
-    
-         
