@@ -424,12 +424,30 @@ def write_summary_report(report, final_score, md_path):
                 details = f"Server Response (TTFB) - Mobile: {mobile.get('message', 'N/A')}. Desktop: {desktop.get('message', 'N/A')}"
                 content.append(_format_check_box(check_name, status, details, 'server_response_slow'))
 
+
+            
             elif key == 'checks.core_web_vitals_check':
                 cwv_status = data.get('performance_status', 'INFO')
                 status = cwv_status
-                details = f"Download Latency (Proxy for LCP/TTFB): **{data.get('download_latency', 'N/A')[:5]}s**. Review full note."
+                
+                # --- FIX START: Handle float formatting ---
+                latency = data.get('download_latency', 'N/A')
+                
+                # Check if 'latency' is a number and format it to 3 decimal places.
+                if isinstance(latency, (float, int)):
+                    # Use f-string formatting to control decimal precision (e.g., 0.930)
+                    latency_str = f"{latency:.3f}"
+                else:
+                    # If it's the fallback 'N/A', keep it as a string
+                    latency_str = latency
+                
+                details = f"Download Latency (Proxy for LCP/TTFB): **{latency_str}s**. Review full note."
+                # --- FIX END ---
+                
                 content.append(_format_check_box(check_name, status, details, 'cwv_warn', data.get('note')))
 
+
+            
             elif key == 'checks.analytics_check':
                 status = '❌ MISSING' if data.get('analytics_missing') else '✅ PASS'
                 details = f"GA/GTM Found: **{status}**. Note: {data.get('note', 'N/A')}"
