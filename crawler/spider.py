@@ -1,13 +1,13 @@
+# spider.py - No changes needed, the code is robust.
+
 import scrapy
 from urllib.parse import urlparse, urljoin
 import logging
-from scrapy_playwright.page import PageMethod # CRITICAL IMPORT for defining wait conditions
+from scrapy_playwright.page import PageMethod 
 
 class SEOSpider(scrapy.Spider):
     name = "seospider"
     
-    # --- Spider Configuration and Initialization ---
-
     @classmethod
     def from_crawler(cls, crawler, *args, **kwargs):
         settings = crawler.settings
@@ -17,7 +17,6 @@ class SEOSpider(scrapy.Spider):
         instance = super().from_crawler(crawler, *args, **kwargs, 
                                         audit_level=audit_level, 
                                         audit_scope=audit_scope)
-        
         return instance
 
     def __init__(self, start_url=None, max_pages_config=25, all_checks=[], audit_level='standard', audit_scope='only_onpage', *args, **kwargs):
@@ -29,7 +28,6 @@ class SEOSpider(scrapy.Spider):
         self.allowed_domains = [urlparse(start_url).netloc]
         self.max_pages_config = max_pages_config
         self.pages_crawled = 0
-        
         self.audit_level = audit_level 
         self.audit_scope = audit_scope 
         self.all_checks_modules = all_checks
@@ -42,7 +40,6 @@ class SEOSpider(scrapy.Spider):
         the page is fully rendered before scraping.
         """
         for url in self.start_urls:
-            # Revert to a simple selector wait. The more robust settings are now in main.py.
             yield scrapy.Request(
                 url, 
                 callback=self.parse, 
@@ -59,10 +56,8 @@ class SEOSpider(scrapy.Spider):
         self.pages_crawled += 1
         logging.info(f"Crawled page {self.pages_crawled}/{self.max_pages_config}: {response.url}")
 
-        # Check if the response received is valid (e.g., status 200) before proceeding
         if response.status >= 400:
             logging.warning(f"Skipping checks due to bad status code {response.status} for {response.url}")
-            # Yield a failed item so the report knows the page failed to load
             yield {
                 'url': response.url,
                 'status_code': response.status,
@@ -83,7 +78,6 @@ class SEOSpider(scrapy.Spider):
             module_name = check_module.__name__
             check_key = module_name.split('.')[-1]
             try:
-                # The name of the function MUST be 'run_audit'
                 check_results = check_module.run_audit(response, self.audit_level) 
                 page_audit_results['checks'][check_key] = check_results
             except AttributeError as e:
@@ -102,8 +96,6 @@ class SEOSpider(scrapy.Spider):
                 parsed_url = urlparse(url)
                 
                 if parsed_url.netloc == self.allowed_domains[0] and parsed_url.scheme in ['http', 'https']:
-                    # Re-use the Playwright configuration for subsequent requests
-                    # We revert to a simpler wait for subsequent pages
                     yield scrapy.Request(
                         url, 
                         callback=self.parse, 
@@ -111,5 +103,5 @@ class SEOSpider(scrapy.Spider):
                             'playwright': True, 
                             'playwright_page_methods': [PageMethod('wait_for_selector', 'body')]
                         }
-        )
+            )
         
