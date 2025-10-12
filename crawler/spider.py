@@ -1,5 +1,3 @@
-# spider.py
-
 import scrapy
 from urllib.parse import urlparse, urljoin
 import logging
@@ -44,15 +42,14 @@ class SEOSpider(scrapy.Spider):
         the page is fully rendered before scraping.
         """
         for url in self.start_urls:
-            # FINAL CRITICAL FIX: Use 'networkidle' with an explicit timeout (60s) 
-            # as a PageMethod to guarantee dynamic content has settled on the AMP page.
+            # Revert to a simple selector wait. The more robust settings are now in main.py.
             yield scrapy.Request(
                 url, 
                 callback=self.parse, 
                 meta={
                     'playwright': True, 
                     'playwright_page_methods': [
-                        PageMethod('wait_for_load_state', 'networkidle', timeout=60000) 
+                        PageMethod('wait_for_selector', 'body') 
                     ]
                 }, 
                 dont_filter=True
@@ -114,5 +111,5 @@ class SEOSpider(scrapy.Spider):
                             'playwright': True, 
                             'playwright_page_methods': [PageMethod('wait_for_selector', 'body')]
                         }
-                )
-                    
+        )
+        
