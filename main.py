@@ -51,6 +51,11 @@ CUSTOM_SETTINGS = {
     'PLAYWRIGHT_LAUNCH_OPTIONS': {
         'headless': True,
         'timeout': 60000, # Browser launch timeout (60s)
+        # CRITICAL ADDITION: Disables common Playwright detection
+        'args': [
+            '--disable-blink-features=AutomationControlled',
+            '--no-sandbox', # Important for environments like Docker/CI runners
+        ],
     },
     
     # 1. Explicitly set browser type
@@ -65,7 +70,10 @@ CUSTOM_SETTINGS = {
     # 5. CRITICAL FIX: Change 'networkidle' to 'load' for better stability on busy sites.
     'PLAYWRIGHT_CONTEXT_ARGS': {
         'viewport': {'width': 1280, 'height': 720},
-        'wait_until': 'load' # Waits until the main resource and sub-resources are loaded.
+        'wait_until': 'load', # Waits until the main resource and sub-resources are loaded.
+        # CRITICAL ADDITION: Further bypass detection measures
+        'bypass_csp': True,
+        'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
     },
     # ===================================================
     
