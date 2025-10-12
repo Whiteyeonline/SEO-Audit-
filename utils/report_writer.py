@@ -319,15 +319,25 @@ def write_summary_report(report, final_score, md_path):
                 status = '✅ OK' if not was_redirected else '⚠️ INFO'
                 details = f"Requested URL: `{data.get('initial_url', 'N/A')}` | Final URL: `{data.get('final_url', 'N/A')}`"
                 content.append(_format_check_box(check_name, status, details, 'was_redirected', data.get('note')))
-
+            
+            
             elif key == 'checks.canonical_check':
-                mismatch = data.get('canonical_mismatch', False)
-                canonical_url = data.get('canonical_url', None)
-                status = '✅ PASS'
-                if mismatch or canonical_url is None: status = '⚠️ CHECK'
-                if canonical_url is None: status = '❌ MISSING'
-                details = f"Canonical URL: `{canonical_url if canonical_url else 'NONE DETECTED'}`. Is on-page URL correct? {data.get('note', 'N/A')}"
+                if data.get('error'):
+                    # Handle the specific error returned by the robust check function
+                    status = '❌ FAIL'
+                    details = f"MODULE CRASHED: {data.get('error')}"
+                else:
+                    # Run the normal canonical logic
+                    mismatch = data.get('canonical_mismatch', False)
+                    canonical_url = data.get('canonical_url', None)
+                    status = '✅ PASS'
+                    if mismatch or canonical_url is None: status = '⚠️ CHECK'
+                    if canonical_url is None: status = '❌ MISSING'
+                    details = f"Canonical URL: `{canonical_url if canonical_url else 'NONE DETECTED'}`. Is on-page URL correct? {data.get('note', 'N/A')}"
+                    
                 content.append(_format_check_box(check_name, status, details, 'canonical_mismatch', data.get('note')))
+                
+    
 
             elif key == 'checks.url_structure':
                 if data.get('not_clean'):
