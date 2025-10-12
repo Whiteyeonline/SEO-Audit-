@@ -7,7 +7,9 @@ import sys
 from scrapy.crawler import CrawlerProcess
 from scrapy.settings import Settings
 from crawler.spider import SEOSpider
-from utils.report_writer import write_summary_report, get_check_aggregation
+# get_check_aggregation is still imported but the critical scoring logic will be more robust
+from utils.report_writer import write_summary_report, get_check_aggregation 
+# ... (all check imports remain the same) ...
 from checks import (
     ssl_check, robots_sitemap, performance_check, keyword_analysis,
     local_seo_check, meta_check, heading_check, image_check, link_check,
@@ -20,7 +22,6 @@ from checks import (
     core_web_vitals_check 
 )
 
-# ALL_CHECKS_MODULES is used by the SEOSpider to run every check on every crawled page.
 ALL_CHECKS_MODULES = [
     ssl_check, robots_sitemap, performance_check, keyword_analysis,
     local_seo_check, meta_check, heading_check, image_check, link_check,
@@ -34,6 +35,7 @@ ALL_CHECKS_MODULES = [
 ]
 
 # === FINALIZED STABILITY SETTINGS FOR SCRAPY-PLAYWRIGHT ===
+# ... (CUSTOM_SETTINGS remain the same, they are correct) ...
 CUSTOM_SETTINGS = {
     'USER_AGENT': 'ProfessionalSEOAgency (+https://github.com/your-repo)',
     'ROBOTSTXT_OBEY': False,
@@ -51,31 +53,21 @@ CUSTOM_SETTINGS = {
     'PLAYWRIGHT_LAUNCH_OPTIONS': {
         'headless': True,
         'timeout': 60000, # Browser launch timeout (60s)
-        # CRITICAL ADDITION: Disables common Playwright detection
         'args': [
             '--disable-blink-features=AutomationControlled',
-            '--no-sandbox', # Important for environments like Docker/CI runners
+            '--no-sandbox', 
         ],
     },
-    
-    # 1. Explicitly set browser type
     'PLAYWRIGHT_BROWSER_TYPE': 'chromium',
-    # 2. Increase the navigation timeout to 90s for complex pages
     'PLAYWRIGHT_DEFAULT_NAVIGATION_TIMEOUT': 90000, 
-    # 3. Match global download timeout
     'DOWNLOAD_TIMEOUT': 90, 
-    # 4. Disable retries to prevent state confusion
     'RETRY_TIMES': 0, 
-    
-    # 5. CRITICAL FIX: Change 'networkidle' to 'load' for better stability on busy sites.
     'PLAYWRIGHT_CONTEXT_ARGS': {
         'viewport': {'width': 1280, 'height': 720},
-        'wait_until': 'load', # Waits until the main resource and sub-resources are loaded.
-        # CRITICAL ADDITION: Further bypass detection measures
+        'wait_until': 'load', 
         'bypass_csp': True,
         'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
     },
-    # ===================================================
     
     # Feed Export Settings for the crawl results
     'FEED_FORMAT': 'json',
@@ -84,7 +76,6 @@ CUSTOM_SETTINGS = {
     'CONCURRENT_REQUESTS': 2,
     'DOWNLOAD_DELAY': 3.0,
     
-    # Keep LOG_ENABLED: False during crawl to ensure file write is finalized
     'LOG_ENABLED': False, 
 }
 
@@ -93,7 +84,6 @@ CUSTOM_SETTINGS = {
 def load_and_generate_reports(settings, AUDIT_URL, AUDIT_LEVEL, COMPETITOR_URL, AUDIT_SCOPE):
     """
     Loads crawl results and generates the final reports.
-    This is called *after* process.start() completes.
     """
     crawl_results = []
     crawl_file_path = settings.get('FEED_URI')
@@ -124,19 +114,47 @@ def load_and_generate_reports(settings, AUDIT_URL, AUDIT_LEVEL, COMPETITOR_URL, 
     total_pages_crawled = len(crawled_pages)
 
     if total_pages_crawled == 0:
+        # If crawl failed completely (Pages Crawled: 0), default to a neutral score
         aggregation = {'total_pages_crawled': 0}
         final_score = 100 
     else:
+        # Use report_writer for full aggregation, but calculate score robustly
         aggregation = get_check_aggregation(crawled_pages) 
         
-        critical_issues_count = (
-            aggregation.get('title_fail_count', 0) +
-            aggregation.get('desc_fail_count', 0) +
-            aggregation.get('h1_fail_count', 0) +
-            aggregation.get('link_broken_total', 0) +
-            aggregation.get('mobile_unfriendly_count', 0)
-        )
-        final_score = max(100 - (critical_issues_count * 5), 50)
+        # ✅ FIX: Robust scoring logic by re-iterating and counting CRITICAL failures
+        critical_issues_count = 0
+        
+        for page in crawled_pages:
+            checks = page.get('checks', {})
+            
+            # --- CRITICAL FAILURE CHECKS (Using correct keys now) ---
+            
+            # 1. Meta Tags (Title/Description)
+            meta = checks.get('meta_check', {})
+            if meta.get('title_fail'): 
+                critical_issues_count += 1
+            if meta.get('desc_fail'): 
+                critical_issues_count += 1
+                
+            # 2. Heading Structure (Missing or multiple H1)
+            heading = checks.get('heading_check', {})
+            if heading.get('h1_fail'): 
+                critical_issues_count += 1
+            
+            # 3. Broken Links (If the page has ANY broken links, count as one critical issue for that page)
+            links = checks.get('link_check', {})
+            if links.get('broken_link_count', 0) > 0:
+                critical_issues_count += 1 
+                
+            # 4. Mobile Friendliness
+            mobile = checks.get('mobile_friendly_check', {})
+            # Check if 'mobile_friendly' key exists and is False
+            if mobile.get('mobile_friendly') is False:
+                critical_issues_count += 1
+        
+        # Apply Scoring: 5 points penalty per critical issue, capped at 50 points
+        penalty = min(critical_issues_count * 5, 50) 
+        final_score = max(100 - penalty, 50) # Score cannot drop below 50
 
 
     structured_report_data = {
@@ -167,7 +185,6 @@ def load_and_generate_reports(settings, AUDIT_URL, AUDIT_LEVEL, COMPETITOR_URL, 
     print(f"\nPages Crawled: {total_pages_crawled}")
 
 # --- Main Execution Flow ---
-
 def main():
     try:
         AUDIT_URL = os.environ['AUDIT_URL']
@@ -178,7 +195,6 @@ def main():
         print("Error: AUDIT_URL environment variable is not set. Aborting.")
         sys.exit(1)
 
-    # 1. Create directory early
     os.makedirs('reports', exist_ok=True)
 
     settings = Settings(CUSTOM_SETTINGS)
@@ -186,7 +202,6 @@ def main():
     settings.set('AUDIT_LEVEL', AUDIT_LEVEL)
     settings.set('AUDIT_SCOPE', AUDIT_SCOPE)
 
-    # Configure the page limit based on the requested audit scope
     if AUDIT_SCOPE == 'only_onpage':
         settings.set('CLOSESPIDER_PAGECOUNT', 1)
     elif AUDIT_SCOPE == 'indexed_pages':
@@ -202,10 +217,8 @@ def main():
     print(f"\nStarting SEO Audit for {AUDIT_URL}...")
     print(f"Level: {AUDIT_LEVEL.capitalize()} | Scope: {AUDIT_SCOPE.replace('_', ' ')} (Max pages: {max_pages_count})\n")
 
-    # Run the crawl process *synchronously*
     process.start() 
     
-    # After process.start() returns, generate reports
     load_and_generate_reports(settings, AUDIT_URL, AUDIT_LEVEL, COMPETITOR_URL, AUDIT_SCOPE)
 
 if __name__ == "__main__":
