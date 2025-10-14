@@ -14,6 +14,7 @@ def run_audit(response, audit_level):
         was_redirected = True
         
     if was_redirected:
+        # Note the specific URLs involved in the redirection
         note = f"INFO: The request to '{response.request.url}' was redirected to '{response.url}'. This suggests a redirect hop. Ensure it is a necessary 301/302."
     else:
         note = "PASS: No redirect detected. The requested URL is the final URL."
@@ -23,5 +24,5 @@ def run_audit(response, audit_level):
         "initial_url": response.request.url,
         "final_url": response.url,
         "note": note
-        }
+    }
     
