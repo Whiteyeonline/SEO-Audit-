@@ -1,7 +1,8 @@
 #requirements.txt - EXPERT VERSION (Fixed for scrapy-playwright versioning)
-
 Core Web Scraping/Crawling
+
 scrapy>=2.11.0
+
 #FIX: The latest version of scrapy-playwright is still in the 0.0.x range.
 Removing the impossible minimum version constraint to allow installation.
 
