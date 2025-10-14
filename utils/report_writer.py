@@ -2,17 +2,15 @@
 
 import json
 import datetime
-# ... (other imports) ...
-from textblob import TextBlob
-from nltk.tokenize import sent_tokenize
 import re
-import textstat
 from urllib.parse import urlparse
-
-# NOTE: The existing _calculate_readability function and _get_issue_description_map are omitted for brevity but remain unchanged.
+# Note: TextBlob, nltk, and textstat imports are assumed to be handled correctly in other parts of the module
 
 def _get_issue_description_map():
-    # ... (content remains the same) ...
+    """
+    Defines common issues, their priority, description, and an expert solution.
+    Updated solutions for 'basic-level' checks (like backlinks) to provide free alternatives.
+    """
     return {
         'title_fail': {
             'name': 'Missing or Poorly Formatted Title Tag',
@@ -84,7 +82,8 @@ def _get_issue_description_map():
             'name': 'Performance Warning (High Latency/TTFB)',
             'priority': 'High',
             'description': 'The page experienced high download latency, which acts as a proxy for slow server response time (TTFB), impacting Core Web Vitals.',
-            'solution': 'Check your Time To First Byte (TTFB) using tools like **WebPageTest** or **GTmetrix**. Focus on optimizing server code, database queries, and using a Content Delivery Network (CDN).'
+            # Expert fix: Recommend free owner tools
+            'solution': 'For precise Core Web Vitals (LCP, FID, CLS), **site owners should check their Google Search Console Core Web Vitals Report** or use the free **PageSpeed Insights** tool.'
         },
         'robots_sitemap_fail': {
             'name': 'Robots/Sitemap Issues',
@@ -121,14 +120,20 @@ def _get_issue_description_map():
             'priority': 'High',
             'description': 'Server response time (TTFB) is too slow, directly impacting page speed and user experience.',
             'solution': 'Optimize server configuration, use a CDN, and improve database query efficiency to reduce server response time **below 200ms**.'
+        },
+        'backlinks_info': {
+            'name': 'Backlinks Information (Basic Check)',
+            'priority': 'Informational',
+            'description': 'This check provides a basic list of domains linked from the page. A detailed analysis requires paid tools.',
+            # Expert fix: Recommend free owner tools
+            'solution': 'To get a full backlink profile (required for SEO), **site owners should check the Links Report in Google Search Console** or use limited free versions of paid tools like Ahrefs/SEMrush.'
         }
     }
 
 
 def get_check_aggregation(crawled_pages):
     """
-    Aggregates issue counts across all crawled pages.
-    ✅ FIX: Corrected all dictionary key lookups to use the simple module name.
+    Aggregates issue counts across all crawled pages. This function is a pure aggregator.
     """
     all_agg_keys = [
         'title_fail_count', 'desc_fail_count', 'h1_fail_count', 'thin_content_count', 
@@ -146,20 +151,20 @@ def get_check_aggregation(crawled_pages):
     for page in crawled_pages:
         page_checks = page.get('checks', {})
 
-        # Meta & Heading Checks - ✅ FIXED KEY LOOKUP
+        # Meta & Heading Checks
         meta_data = page_checks.get('meta_check', {})
         if meta_data.get('title_fail') is True: aggregation['title_fail_count'] += 1
         if meta_data.get('desc_fail') is True: aggregation['desc_fail_count'] += 1
         heading_data = page_checks.get('heading_check', {})
         if heading_data.get('h1_fail') is True: aggregation['h1_fail_count'] += 1
 
-        # Content & Image Checks - ✅ FIXED KEY LOOKUP
+        # Content & Image Checks
         content_data = page_checks.get('content_quality', {})
         if content_data.get('thin_content') is True: aggregation['thin_content_count'] += 1
         image_data = page_checks.get('image_check', {})
         aggregation['missing_alt_total'] += image_data.get('missing_alt_images_count', 0)
 
-        # Link, Canonical & Redirect Checks - ✅ FIXED KEY LOOKUP
+        # Link, Canonical & Redirect Checks
         link_data = page_checks.get('link_check', {})
         aggregation['link_broken_total'] += link_data.get('broken_link_count', 0)
         canonical_data = page_checks.get('canonical_check', {})
@@ -167,7 +172,7 @@ def get_check_aggregation(crawled_pages):
         redirect_data = page_checks.get('redirect_check', {})
         if redirect_data.get('was_redirected') is True: aggregation['redirect_info_count'] += 1
 
-        # Technical & Structure Checks - ✅ FIXED KEY LOOKUP
+        # Technical & Structure Checks
         mobile_data = page_checks.get('mobile_friendly_check', {})
         if mobile_data.get('mobile_friendly') is False: aggregation['mobile_unfriendly_count'] += 1
         analytics_data = page_checks.get('analytics_check', {})
@@ -177,40 +182,37 @@ def get_check_aggregation(crawled_pages):
         url_data = page_checks.get('url_structure', {})
         if url_data.get('not_clean') is True: aggregation['url_not_clean_count'] += 1
         robots_data = page_checks.get('robots_sitemap', {})
+        # Note: If robots_sitemap_fail_count is ever > 0, it means a failure occurred.
         if robots_data.get('robots_sitemap_fail_count', 0) > 0: aggregation['robots_sitemap_fail_count'] += 1
         
-        # Performance & Accessibility - ✅ FIXED KEY LOOKUP
+        # Performance & Accessibility
         cwv_data = page_checks.get('core_web_vitals_check', {})
         if cwv_data.get('performance_status') == '⚠️ WARN': aggregation['core_web_vitals_warn_count'] += 1
+        # Check if the internal response time check failed
         perf_data = page_checks.get('performance_check', {})
         if perf_data.get('mobile_score', {}).get('result') != 'Pass': aggregation['server_response_fail_count'] += 1
         a11y_data = page_checks.get('accessibility_check', {})
         if a11y_data.get('accessibility_fail') is True: aggregation['accessibility_fail_count'] += 1
         
-        # Local SEO - ✅ FIXED KEY LOOKUP
+        # Local SEO
         nap_data = page_checks.get('local_seo_check', {})
         if nap_data.get('nap_fail') is True: aggregation['nap_fail_count'] += 1
 
     return aggregation
 
 
-def write_summary_report(report, final_score, md_path):
+# 💡 FIX: Removed the redundant 'final_score' argument as it is contained in the 'report' dict.
+def write_summary_report(report, md_path):
     """
     Writes the final report data to a professional Markdown file.
-    ✅ FIX: Corrected all dictionary key lookups to match the simple module name.
+    Uses the score pre-calculated in main.py to ensure consistency with the JSON report.
     """
     audit_details = report['audit_details']
     crawled_pages = report['crawled_pages']
-    aggregated_issues = report['aggregated_issues']
     
-    critical_issues_count = (
-        aggregated_issues.get('title_fail_count', 0) +
-        aggregated_issues.get('desc_fail_count', 0) +
-        aggregated_issues.get('h1_fail_count', 0) +
-        aggregated_issues.get('link_broken_total', 0) +
-        aggregated_issues.get('mobile_unfriendly_count', 0)
-    )
-    score = max(100 - (critical_issues_count * 5), 50)
+    # 💡 FIX: Retrieve the single source of truth for the score
+    score = report['final_score'] 
+    
     issue_map = _get_issue_description_map()
     current_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
@@ -221,15 +223,22 @@ def write_summary_report(report, final_score, md_path):
     content.append(f"**Target URL:** `{audit_details.get('target_url', 'N/A')}`\n")
     content.append(f"**Audit Date:** {current_time}\n")
     content.append(f"**Total Pages Crawled:** {len(crawled_pages)}\n")
-    content.append(f"**Overall Site Score:** **{score}/100**\n\n")
+    content.append(f"**Overall Site Score:** **{score}/100**\n\n") # Use the consistent score
     content.append("---\n\n") 
 
-    # --- (Sections 2 and 3 omitted) ---
+    # --- 2. Executive Summary --- (Simplified for this file's focus)
+    content.append("## 2. Executive Summary\n\n")
+    content.append("This score is based on a weighted penalty model focusing on critical, crawl-impacting issues. See the Structured JSON file for a breakdown of penalties.\n\n")
+    content.append(f"The site received a score of **{score}/100** based on the on-page analysis of {len(crawled_pages)} pages.\n\n")
+    content.append("### Key Issues\n\n")
+    # This section can be built out later to list top 5 issues from 'report['aggregated_issues']'
+    content.append("* **[To Be Added]:** List top 5 issues from aggregated_issues.\n\n")
+    content.append("---\n\n")
+
+    # --- 3. Detailed Page-by-Page Audit ---
     content.append("## 3. Detailed Page-by-Page Audit\n\n")
     content.append("This section provides granular, check-by-check data for each page crawled, utilizing a clear block format for readability.\n\n")
 
-
-    # ✅ FIX: Use simple module names in ALL_CHECK_KEYS
     ALL_CHECK_KEYS = [
         'ssl_check', 'robots_sitemap', 'redirect_check', 
         'canonical_check', 'url_structure', 'meta_check', 
@@ -240,9 +249,38 @@ def write_summary_report(report, final_score, md_path):
         'local_seo_check', 'keyword_analysis', 'backlinks_check'
     ]
 
+    # Helper function remains the same, but solution keys are updated
+    def _format_check_box(check_name, status, details, solution_key=None, note=None):
+        box = []
+        box.append(f"\n**{check_name.upper()}**")
+        box.append("-----------------")
+        box.append(f"**STATUS:** **{status}**")
+        
+        if details:
+            box.append(f"**DETAILS:** {details}")
+        if note:
+            box.append(f"**NOTE:** {note}")
+
+        if status.startswith('❌') or status.startswith('⚠️'):
+            # Use specific solution key or default to a relevant info key
+            use_key = solution_key if solution_key in issue_map else None
+
+            if 'backlink' in check_name.lower() and not use_key:
+                 use_key = 'backlinks_info'
+            if 'vitals' in check_name.lower() and not use_key:
+                 use_key = 'cwv_warn'
+            
+            if use_key and use_key in issue_map:
+                issue = issue_map[use_key]
+                box.append(f"\n**💡 RECOMMENDATION: {issue['name']}**")
+                box.append(f"**Priority:** {issue['priority']}")
+                box.append(f"**Solution:** {issue['solution']}")
+        
+        box.append("_______________________________")
+        return '\n'.join(box)
+    
     # Process each crawled page for its detailed report
     for idx, page in enumerate(crawled_pages):
-        # ✅ FIX: Get check data using the simple module name as the key
         page_checks = page.get('checks', {})
         page_url = page.get('url', 'N/A')
         status = page.get('status_code', 'N/A')
@@ -251,53 +289,29 @@ def write_summary_report(report, final_score, md_path):
         content.append(f"**HTTP Status Code:** `{status}`\n")
         content.append("---")
         
-        # --- Helper Function remains the same ---
-        def _format_check_box(check_name, status, details, solution_key=None, note=None):
-            box = []
-            box.append(f"\n**{check_name.upper()}**")
-            box.append("-----------------")
-            box.append(f"**STATUS:** **{status}**")
-            
-            if details:
-                box.append(f"**DETAILS:** {details}")
-            elif note:
-                box.append(f"**NOTE:** {note}")
-
-            if status.startswith('❌') or status.startswith('⚠️'):
-                if solution_key and solution_key in issue_map:
-                    issue = issue_map[solution_key]
-                    box.append(f"\n**💡 RECOMMENDATION: {issue['name']}**")
-                    box.append(f"**Priority:** {issue['priority']}")
-                    box.append(f"**Solution:** {issue['solution']}")
-            
-            box.append("_______________________________")
-            return '\n'.join(box)
-        # --- End Helper Function ---
-
-
-         # Process all 21 checks
+        # --- Process all 21 checks ---
         for key in ALL_CHECK_KEYS:
-            # ✅ FIX: data is fetched directly using the simple key (e.g., 'ssl_check')
             data = page_checks.get(key, {}) 
             check_name = key.replace('_', ' ').title()
             
+            # Error Check (Generic Fallback)
             if data.get('error'):
                 formatted_box = _format_check_box(f"MODULE ERROR: {check_name}", "❌ FAIL", 
                                                 f"Unhandled exception during check: {data.get('error')}", 
-                                                'canonical_mismatch')
+                                                'canonical_mismatch') # Using a generic high-priority solution key
                 content.append(formatted_box)
                 continue
 
-            elif key == 'ssl_check': # ✅ FIXED KEY
+            elif key == 'ssl_check':
                 if data.get('valid_ssl'):
                     status = '✅ PASS'
                     details = f"SSL is valid. Issuer: {data.get('issuer', 'N/A')}"
                 else:
                     status = '❌ FAIL'
                     details = "SSL is invalid or missing."
-                content.append(_format_check_box(check_name, status, details))
+                content.append(_format_check_box(check_name, status, details, 'ssl_check_fail')) # Added specific key
 
-            elif key == 'robots_sitemap': # ✅ FIXED KEY
+            elif key == 'robots_sitemap':
                 robots = data.get('robots.txt_status', 'not found')
                 sitemap = data.get('sitemap.xml_status', 'not found')
                 status = '✅ PASS'
@@ -306,42 +320,36 @@ def write_summary_report(report, final_score, md_path):
                 details = f"Robots.txt Status: **{robots.upper()}**. Sitemap.xml Status: **{sitemap.upper()}**."
                 content.append(_format_check_box(check_name, status, details, 'robots_sitemap_fail', data.get('note')))
             
-            elif key == 'redirect_check': # ✅ FIXED KEY
+            elif key == 'redirect_check':
                 was_redirected = data.get('was_redirected', False)
                 status = '✅ OK' if not was_redirected else '⚠️ INFO'
                 details = f"Requested URL: `{data.get('initial_url', 'N/A')}` | Final URL: `{data.get('final_url', 'N/A')}`"
                 content.append(_format_check_box(check_name, status, details, 'was_redirected', data.get('note')))
             
             
-            elif key == 'canonical_check': # ✅ FIXED KEY
-                if data.get('error'):
-                    status = '❌ FAIL'
-                    details = f"MODULE CRASHED: {data.get('error')}"
+            elif key == 'canonical_check':
+                mismatch = data.get('canonical_mismatch', False)
+                canonical_url = data.get('canonical_url', None)
+                
+                if canonical_url is None:
+                    status = '❌ MISSING'
+                elif mismatch:
+                    status = '⚠️ CHECK'
                 else:
-                    mismatch = data.get('canonical_mismatch', False)
-                    canonical_url = data.get('canonical_url', None)
+                    status = '✅ PASS'
                     
-                    if canonical_url is None:
-                        status = '❌ MISSING'
-                    elif mismatch:
-                        status = '⚠️ CHECK'
-                    else:
-                        status = '✅ PASS'
-                        
-                    details = f"Canonical URL: `{canonical_url if canonical_url else 'NONE DETECTED'}`."
-                    
+                details = f"Canonical URL: `{canonical_url if canonical_url else 'NONE DETECTED'}`."
+                
                 content.append(_format_check_box(check_name, status, details, 'canonical_mismatch', data.get('note')))
                 
-            elif key == 'url_structure': # ✅ FIXED KEY
+            elif key == 'url_structure':
                 if data.get('not_clean'):
                     status = '⚠️ WARN'
                     details = f"URL contains parameters or stop words (e.g., `{urlparse(page_url).path}`)."
                 else:
                     status = '✅ PASS'
                     details = f"URL is clean and uses best practices: `{urlparse(page_url).path}`"
-                content.append(_format_check_box(check_name, status, details, 'unclean_url'))
-
-            elif key == 'meta_check': # ✅ FIXED KEY
+            elif key == 'meta_check':
                 title_fail = data.get('title_fail')
                 desc_fail = data.get('desc_fail')
 
@@ -355,45 +363,45 @@ def write_summary_report(report, final_score, md_path):
                 d_details = f"Description: `{data.get('desc_content', 'MISSING...')[:100]}...` (Length: {data.get('desc_length', 0)})"
                 content.append(_format_check_box("Meta Description Check", d_status, d_details, 'desc_fail'))
             
-            elif key == 'heading_check': # ✅ FIXED KEY
+            elif key == 'heading_check':
                 h1_fail = data.get('h1_fail')
                 status = '❌ FAIL' if h1_fail else '✅ PASS'
                 details = f"Found **{data.get('h1_count', 0)}** H1 tags. (Optimal: exactly 1)"
                 content.append(_format_check_box(check_name, status, details, 'h1_fail'))
 
-            elif key == 'content_quality': # ✅ FIXED KEY
+            elif key == 'content_quality':
                 word_count = data.get('word_count', 0)
                 status = '✅ PASS'
                 if word_count < 200: status = '❌ FAIL'
                 details = f"Found **{word_count}** words. (Warning for thin content below 200 words)"
                 content.append(_format_check_box(check_name, status, details, 'thin_content', data.get('readability_note')))
             
-            elif key == 'image_check': # ✅ FIXED KEY
+            elif key == 'image_check':
                 missing_alt = data.get('missing_alt_images_count', 0)
                 status = '❌ FAIL' if missing_alt > 0 else '✅ PASS'
                 details = f"**{missing_alt}** image(s) missing alt text. (Total images: {data.get('total_images_count', 0)})"
                 content.append(_format_check_box(check_name, status, details, 'missing_alt_images'))
 
-            elif key == 'link_check': # ✅ FIXED KEY
+            elif key == 'link_check':
                 broken_count = data.get('broken_link_count', 0)
                 status = '❌ FAIL' if broken_count > 0 else '✅ PASS'
                 details = f"Found **{broken_count}** broken link(s). Sample: `{data.get('sample_broken_link', 'N/A')}`"
                 content.append(_format_check_box(check_name, status, details, 'broken_link_count'))
 
-            elif key == 'internal_links': # ✅ FIXED KEY
+            elif key == 'internal_links':
                 internal_links = data.get('internal_links_count', 0)
                 status = '✅ PASS'
                 if internal_links == 0: status = '⚠️ WARN'
                 details = f"Page links to **{internal_links}** internal pages and {data.get('external_links_count', 0)} external pages."
                 content.append(_format_check_box(check_name, status, details, 'missing_internal_links'))
 
-            elif key == 'schema_check': # ✅ FIXED KEY
+            elif key == 'schema_check':
                 schema_found = data.get('schema_found')
                 status = '✅ PASS' if schema_found else '⚠️ INFO'
                 details = f"Schema Markup Found: {schema_found}. Types detected: {', '.join(data.get('schema_types', ['None']))}"
                 content.append(_format_check_box(check_name, status, details))
 
-            elif key == 'mobile_friendly_check': # ✅ FIXED KEY
+            elif key == 'mobile_friendly_check':
                 is_mobile_friendly = data.get('mobile_friendly')
                 status = '❌ FAIL' if is_mobile_friendly is False else '✅ PASS'
                 issue_list = data.get('issues', [])
@@ -401,7 +409,7 @@ def write_summary_report(report, final_score, md_path):
                 
                 content.append(_format_check_box(check_name, status, issue_details, 'not_mobile_friendly', data.get('note')))
 
-            elif key == 'accessibility_check': # ✅ FIXED KEY
+            elif key == 'accessibility_check':
                 if data.get('accessibility_fail'):
                     status = '❌ FAIL'
                 else:
@@ -409,7 +417,7 @@ def write_summary_report(report, final_score, md_path):
                 details = f"Basic A11y Issues: **{data.get('a11y_issue_count', 0)}** detected. (e.g., contrast, tab order, etc.)"
                 content.append(_format_check_box(check_name, status, details, 'accessibility_fail'))
 
-            elif key == 'performance_check': # ✅ FIXED KEY
+            elif key == 'performance_check':
                 desktop = data.get('desktop_score', {})
                 mobile = data.get('mobile_score', {})
                 status = '✅ PASS'
@@ -418,7 +426,7 @@ def write_summary_report(report, final_score, md_path):
                 details = f"Server Response (TTFB) - Mobile: {mobile.get('message', 'N/A')}. Desktop: {desktop.get('message', 'N/A')}"
                 content.append(_format_check_box(check_name, status, details, 'server_response_slow'))
             
-            elif key == 'core_web_vitals_check': # ✅ FIXED KEY
+            elif key == 'core_web_vitals_check':
                 cwv_status = data.get('performance_status', 'INFO')
                 status = cwv_status
                 
@@ -432,32 +440,33 @@ def write_summary_report(report, final_score, md_path):
                 
                 content.append(_format_check_box(check_name, status, details, 'cwv_warn', data.get('note')))
             
-            elif key == 'analytics_check': # ✅ FIXED KEY
+            elif key == 'analytics_check':
                 status = '❌ MISSING' if data.get('analytics_missing') else '✅ PASS'
                 details = f"GA/GTM Found: **{status}**. Note: {data.get('note', 'N/A')}"
                 content.append(_format_check_box(check_name, status, details, 'analytics_missing'))
 
-            elif key == 'og_tags_check': # ✅ FIXED KEY
+            elif key == 'og_tags_check':
                 status = '❌ FAIL' if data.get('og_tags_missing') else '✅ PASS'
                 details = f"Missing Tags: **{len(data.get('missing_tags_list', []))}** ({', '.join(data.get('missing_tags_list', ['None']))})"
                 content.append(_format_check_box(check_name, status, details, 'og_tags_missing'))
             
-            elif key == 'local_seo_check': # ✅ FIXED KEY
+            elif key == 'local_seo_check':
                 status = '❌ FAIL' if data.get('nap_fail') else '✅ PASS'
                 details = f"NAP Consistency Check: **{data.get('consistency_status', 'N/A')}**. Review manual audit for external citations."
                 content.append(_format_check_box(check_name, status, details, 'nap_mismatch'))
 
-            elif key == 'keyword_analysis': # ✅ FIXED KEY
+            elif key == 'keyword_analysis':
                 density = data.get('primary_keyword_density', 0)
                 status = '✅ PASS'
                 if density > 5: status = '⚠️ WARN'
                 details = f"Primary Keyword: `{data.get('primary_keyword', 'N/A')}`. Density: **{density:.2f}%**. (Target: 1-3%)"
                 content.append(_format_check_box(check_name, status, details))
 
-            elif key == 'backlinks_check': # ✅ FIXED KEY
+            elif key == 'backlinks_check':
                 status = '⚠️ INFO'
                 details = f"Top Referring Domains: **{data.get('referring_domains_count', 0)}** detected. Sample: {', '.join(data.get('sample_domains', ['N/A']))}"
-                content.append(_format_check_box(check_name, status, details, note=data.get('note')))
+                # 💡 FIX: Set solution_key to trigger the basic-check recommendation
+                content.append(_format_check_box(check_name, status, details, 'backlinks_info', data.get('note')))
             
         content.append("\n\n---\n") # Final separator for the page audit
 
@@ -466,7 +475,8 @@ def write_summary_report(report, final_score, md_path):
     # 4. Appendix/Disclaimer
     # -----------------------------------------------------
     content.append("## 4. Disclaimer & Technology Used\n\n")
-    content.append("This is a static, on-page analysis. True Core Web Vitals, link quality, and ranking difficulty require integration with third-party APIs (e.g., Google PageSpeed Insights, Ahrefs, SEMrush).\n")
+    # Clarified disclaimer on the reliance on free OSS/tools
+    content.append("This audit uses free, open-source tools (Scrapy, Playwright, NLTK) and provides a static, on-page analysis. True Core Web Vitals, link quality, and comprehensive ranking difficulty require dedicated access (often paid) to first-party data (Google Search Console) or premium third-party APIs (e.g., Ahrefs, SEMrush).\n")
 
 
     with open(md_path, 'w', encoding='utf-8') as f:
