@@ -1,3 +1,5 @@
+# checks/ssl_check.py
+
 import ssl, socket
 import requests
 from urllib.parse import urlparse
@@ -8,7 +10,7 @@ def run_audit(response, audit_level):
     Checks the SSL certificate status of the domain using the response URL.
     Uses raw socket check first, then falls back to a requests check.
     
-    The audit_level argument is mandatory but not used in this specific check.
+    This check relies on network protocols and does not require HTML parsing.
     """
     # Use the response URL to get the base domain
     domain = urlparse(response.url).netloc
@@ -25,34 +27,32 @@ def run_audit(response, audit_level):
             return {
                 "valid_ssl": True, 
                 "ssl_check_fail": False,
-                "issuer": cert.get("issuer", [("organizationName", "N/A")])[0][1], # Extract org name
+                # Extract organization name from certificate issuer data
+                "issuer": cert.get("issuer", [("organizationName", "N/A")])[0][1], 
                 "note": "SSL certificate is valid and connection was successful."
             }
     
-    except Exception as e:
-        socket_error = str(e)
-        
+    except Exception as socket_error:
         # --- Fallback Check: Requests ---
         try:
             # Use requests to verify if HTTPS connection is possible
             requests.get(response.url, timeout=10, verify=True)
             
-            # If requests succeeds, the SSL is valid for HTTPS traffic, 
-            # even if the raw socket failed (due to setup/environment differences).
+            # If requests succeeds, the SSL is valid for HTTPS traffic.
             return {
                 "valid_ssl": True, 
                 "ssl_check_fail": False,
                 "issuer": "Requests Verified",
-                "note": "SSL is valid, confirmed via HTTPS request."
+                "note": "SSL is valid, confirmed via HTTPS request. Raw socket check failed."
             }
             
-        except Exception as e2:
+        except Exception as requests_error:
             # Failure
             return {
                 "valid_ssl": False,
                 "ssl_check_fail": True,
                 "issuer": None,
-                "note": "Critical Failure: HTTPS connection failed (Certificate invalid or missing).",
-                "error": f"socket error: {socket_error}, requests error: {str(e2)}"
-            }
+                "note": "Critical Failure: HTTPS connection failed (Certificate invalid or missing or connection error).",
+                "error": f"socket error: {socket_error}, requests error: {str(requests_error)}"
+        }
             
