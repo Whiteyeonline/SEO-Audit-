@@ -1,42 +1,72 @@
+# checks/analytics_check.py
 import re
 from bs4 import BeautifulSoup
 
-# FIX: Changed function name and arguments to match the spider's requirement
+# Regex to find Google Analytics (UA- or G-) and Google Tag Manager (GTM-) IDs
+GA_RE = re.compile(r'UA-\d{4,9}-\d{1,4}|G-[A-Z0-9]{8}')
+GTM_RE = re.compile(r'GTM-[A-Z0-9]{5,7}')
+
 def run_audit(response, audit_level):
     """
     Detects the presence of common Google Analytics and Google Tag Manager scripts
-    using the Scrapy response object.
+    using the fully rendered HTML provided by the Spider (Scrapy-Playwright).
     """
-    # Use response.text to get the HTML content
-    soup = BeautifulSoup(response.text, "lxml")
+    try:
+        # 💡 FIX: Use response.body for robust, encoding-safe parsing of the rendered HTML
+        soup = BeautifulSoup(response.body, "lxml", from_encoding="utf-8")
+    except Exception as e:
+        return {"error": f"Failed to parse content for analytics check: {str(e)}"}
     
     tracking = {
         "google_analytics_found": False,
         "google_tag_manager_found": False,
         "other_analytics_found": False,
+        "ga_id": None,
+        "gtm_id": None
     }
     
-    scripts = soup.find_all("script")
-    
-    for script in scripts:
-        # Check for Google Tag Manager (GTM)
-        if script.get("src") and "gtm.js" in script.get("src"):
-            tracking["google_tag_manager_found"] = True
+    # Check all <script> tags for GTM/GA codes
+    for script in soup.find_all("script"):
         
-        # Check for Google Analytics (UA- or G- tracking ID)
-        if script.string:
-            # Universal Analytics (UA-XXXXX) or Google Analytics 4 (G-XXXXX)
-            if re.search(r'UA-\d{4,9}-\d{1,4}|G-[A-Z0-9]{8}', script.string):
+        # 1. Check for GTM by src attribute
+        src = script.get("src", "")
+        if "gtm.js" in src:
+            match = GTM_RE.search(src)
+            if match:
+                tracking["google_tag_manager_found"] = True
+                tracking["gtm_id"] = match.group(0)
+            
+        # 2. Check for GA/GTM/Other in the script content
+        script_content = script.string if script.string else ""
+        
+        # Check for Google Analytics ID (UA- or G-)
+        if not tracking["google_analytics_found"]:
+            match = GA_RE.search(script_content)
+            if match:
                 tracking["google_analytics_found"] = True
+                tracking["ga_id"] = match.group(0)
             
-            # Simple check for other common third-party scripts (e.g., Facebook Pixel)
-            if "fbq" in script.string or "pixel" in script.string:
-                 tracking["other_analytics_found"] = True
+        # Check for Google Tag Manager ID in dataLayer initialization
+        if not tracking["google_tag_manager_found"]:
+            match = GTM_RE.search(script_content)
+            if match:
+                tracking["google_tag_manager_found"] = True
+                tracking["gtm_id"] = match.group(0)
+
+        # Check for other common third-party scripts (e.g., Facebook Pixel, Hotjar)
+        if "fbq" in script_content or "_hj" in script_content:
+             tracking["other_analytics_found"] = True
             
-    # The audit_level argument is mandatory but not used in this specific check.
+    
+    # Final Note
+    if tracking["google_analytics_found"] or tracking["google_tag_manager_found"]:
+        note = "PASS: Tracking detected. GTM or GA code is present. Event tracking cannot be verified."
+    else:
+        note = "FAIL: No Google Analytics or Google Tag Manager code detected. Tracking may be missing."
+        
     return {
         "tracking_setup": tracking,
         "analytics_missing": not (tracking["google_analytics_found"] or tracking["google_tag_manager_found"]),
-        "note": "Tracking detection is static (HTML only). Event tracking cannot be verified."
+        "note": note
     }
     
