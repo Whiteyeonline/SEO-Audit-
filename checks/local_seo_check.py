@@ -1,72 +1,101 @@
+# checks/local_seo_check.py
+from bs4 import BeautifulSoup
 import json
-from lxml import html
 import re
 
-# FIX: Changed function name and arguments to match the spider's requirement
 def run_audit(response, audit_level) -> dict:
     """
     Performs Local SEO checks on a single page, focusing on Schema.org,
-    and presence of key local information, using the Scrapy response object.
+    and presence of key local information (NAP: Name, Address, Phone).
+    
+    This check uses the fully rendered HTML provided by the Spider (Scrapy-Playwright).
     """
     results = {
         "check_name": "Local SEO & Business Info Check",
         "url": response.url,
-        "status": "Pass", 
+        "status": "PASS", 
         "issues": [],
-        "details": {}
+        "details": {},
+        "nap_fail_count": 0
     }
 
     try:
-        # Use response.text to get the HTML content
-        tree = html.fromstring(response.text)
+        # Use response.body for robust, encoding-safe parsing of the rendered HTML
+        soup = BeautifulSoup(response.body, "lxml", from_encoding="utf-8")
         
         # --- Check 1: Schema.org LocalBusiness Markup ---
-        # Look for script tags with application/ld+json containing "LocalBusiness"
-        local_schema = tree.xpath('//script[@type="application/ld+json" and contains(., "LocalBusiness")]')
+        schema_status = "No Relevant Schema Found"
         
-        if not local_schema:
-            # Check for alternative types if LocalBusiness is not found, e.g., Organization
-            org_schema = tree.xpath('//script[@type="application/ld+json" and contains(., "Organization")]')
-            
-            if org_schema:
-                results["status"] = "Warning"
-                results["issues"].append({"type": "warning", "message": "Missing LocalBusiness Schema.org markup. Organization Schema found, but LocalBusiness is preferred for local pages."})
-                results["details"]["schema_status"] = "Organization Schema Found"
-            else:
-                results["status"] = "Warning"
-                results["issues"].append({"type": "warning", "message": "Missing Schema.org markup (LocalBusiness or Organization) for local context."})
-                results["details"]["schema_status"] = "No Relevant Schema Found"
-        else:
-            results["details"]["schema_status"] = "LocalBusiness Schema Found"
+        # Look for application/ld+json script tags
+        schema_tags = soup.find_all("script", type="application/ld+json")
+        
+        for tag in schema_tags:
+            content = tag.string.strip() if tag.string else ""
+            if not content:
+                continue
+
+            try:
+                data = json.loads(content)
+                
+                # Normalize data check (handle single object or array of objects)
+                items_to_check = data if isinstance(data, list) else [data]
+                
+                for item in items_to_check:
+                    if isinstance(item, dict) and '@type' in item:
+                        schema_type = item['@type']
+                        
+                        # Prioritize LocalBusiness, then Organization
+                        if 'LocalBusiness' in schema_type:
+                            schema_status = "LocalBusiness Schema Found (PASS)"
+                            break
+                        elif 'Organization' in schema_type:
+                            schema_status = "Organization Schema Found (Warning: LocalBusiness preferred)"
+                if "LocalBusiness" in schema_status:
+                    break
+                        
+            except json.JSONDecodeError:
+                continue
+        
+        results["details"]["schema_status"] = schema_status
+        if "Organization" in schema_status and "LocalBusiness" not in schema_status:
+            results["status"] = "WARNING"
+            results["issues"].append({"type": "warning", "message": "LocalBusiness Schema preferred for local pages, only Organization found."})
+        elif "No Relevant Schema Found" in schema_status:
+            results["status"] = "WARNING"
+            results["issues"].append({"type": "warning", "message": "Missing Schema.org markup (LocalBusiness or Organization) for local context."})
+
 
         # --- Check 2: NAP (Name, Address, Phone) Presence ---
-        # Get the full text content for the NAP keyword search
-        full_text = tree.text_content()
+        # Get the full *visible* text content (after stripping noise)
+        for script_or_style in soup(["script", "style", "header", "footer", "nav", "noscript"]):
+            script_or_style.decompose()
+        full_text = soup.get_text(separator=' ', strip=True).lower()
         
-        # Simple keywords to check for contact details
-        contact_keywords = ["address", "phone", "contact", "location", "tel:", "zip code"]
-        found_keywords = [kw for kw in contact_keywords if re.search(r'\b' + re.escape(kw) + r'\b', full_text, re.IGNORECASE)]
         
-        # Set a flag for the report writer
-        results["nap_fail_count"] = 0
+        # Simple regex for finding key NAP components (high false positive rate, but good for flags)
+        nap_found = {
+            "address": bool(re.search(r'\b(street|road|avenue|av\b|st\b|rd\b|ln\b|p\.o\.|zip code|postal code)', full_text)),
+            "phone": bool(re.search(r'\b(\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}|\b(tel|phone|call)\b)', full_text)),
+            "email": bool(re.search(r'\b(\S+@\S+\.\S+)\b', full_text))
+        }
         
-        if len(found_keywords) < 2:
-            results["details"]["nap_status"] = "Potential NAP information is sparse. Fewer than 2 contact keywords found."
+        # Count critical NAP items found (Address, Phone)
+        critical_nap_found = nap_found["address"] + nap_found["phone"]
+        
+        if critical_nap_found < 2:
+            results["status"] = "FAIL" # Downgrade to FAIL if NAP is critically missing
             results["nap_fail_count"] = 1
-            # Only downgrade status if schema is also missing
-            if results["status"] != "Warning":
-                 results["status"] = "Info" 
-            
+            results["issues"].append({"type": "error", "message": "Critical NAP information (Address/Phone) is missing from the visible page content."})
+            results["details"]["nap_status"] = f"NAP components found: Address ({nap_found['address']}), Phone ({nap_found['phone']}), Email ({nap_found['email']})."
         else:
-            results["details"]["nap_status"] = f"Common contact keywords found: {', '.join(found_keywords)}"
-        
+            results["details"]["nap_status"] = "Address and Phone keywords are present on the page."
+
         if not results["issues"]:
-            results["details"]["message"] = "No critical Local SEO issues detected (Placeholder logic)."
+            results["details"]["message"] = "Local Schema found or Organization Schema found, and key NAP elements are present."
 
     except Exception as e:
-        results["status"] = "Error"
+        results["status"] = "ERROR"
         results["issues"].append({"type": "error", "message": f"An error occurred during local SEO check: {e}"})
 
-    # The audit_level argument is mandatory but not used in this specific check.
     return results
-        
+                
