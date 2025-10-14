@@ -1,18 +1,24 @@
-# requirements.txt - EXPERT VERSION
+#requirements.txt - EXPERT VERSION (Fixed for scrapy-playwright versioning)
 
-# Core Web Scraping/Crawling
+Core Web Scraping/Crawling
 scrapy>=2.11.0
-# Updated to a stable, recent version (0.21.0 is a good anchor)
-scrapy-playwright>=0.21.0
+#FIX: The latest version of scrapy-playwright is still in the 0.0.x range.
+Removing the impossible minimum version constraint to allow installation.
+
+scrapy-playwright
 playwright>=1.47.0
-# Explicitly including Twisted for stable Scrapy performance
+
+#Explicitly including Twisted for stable Scrapy performance
+
 Twisted>=22.10.0
 
-# Data Processing and Analysis
+#Data Processing and Analysis
+
 requests>=2.31.0
 textblob>=0.18.0
 nltk>=3.8.1
 
-# HTML Parsing and Manipulation
+#HTML Parsing and Manipulation
+
 beautifulsoup4>=4.12.3
 lxml>=4.9.4
