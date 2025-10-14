@@ -1,25 +1,24 @@
-Name: SEO Audit Tool
+# .github/workflows/audit.yml
+name: Automated SEO Audit
 
-# This workflow allows you to manually trigger the audit from the GitHub Actions tab.
+# 1. Define the trigger: Manual workflow dispatch
 on:
   workflow_dispatch:
     inputs:
       audit_url:
-        description: 'URL to audit'
+        description: 'Target URL for the SEO audit (e.g., https://example.com)'
         required: true
-        # Keep default empty or set to a safe example URL
-        default:
-        
+        default: 'https://quotes.toscrape.com/'
       audit_level:
-        description: 'Audit intensity (basic, standard)'
+        description: 'Audit scope (standard or advanced)'
         required: true
         default: 'standard'
         type: choice
         options:
-          - basic
           - standard
+          - advanced
       audit_scope:
-        description: 'Crawl scope (only_onpage, indexed_pages, full_300_pages)'
+        description: 'Crawl depth (only_onpage, indexed_pages, full_300_pages)'
         required: true
         default: 'only_onpage'
         type: choice
@@ -28,44 +27,43 @@ on:
           - indexed_pages
           - full_300_pages
       competitor_url:
-        description: 'Optional: Competitor URL for comparison'
+        description: 'Optional competitor URL for analysis'
         required: false
-        default: ''
 
 jobs:
-  seo_audit_job:
-    # Use a standard, fast runner
+  run_seo_audit:
+    # Use a modern, stable Ubuntu runner
     runs-on: ubuntu-latest
     
     steps:
-      - name: 1. Checkout repository code
+      - name: 1. Checkout Repository
         uses: actions/checkout@v4
 
+      # 2. Set up Python environment
       - name: 2. Set up Python 3.11
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-          cache: 'pip'
+          cache: 'pip' # Cache dependencies for faster runs
 
-      # 🚀 FIX 1: Install Python dependencies FIRST, then Playwright binaries
-      - name: 3. Install Python dependencies
+      # 3. Install necessary system dependencies for Playwright
+      - name: 3. Install Playwright system dependencies
+        run: sudo apt-get update && sudo apt-get install -y libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 libgbm-dev libxkbcommon-x11-0
+
+      # 4. Install Python dependencies and Playwright browser binaries
+      - name: 4. Install Python dependencies and Playwright browser
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          
-      # 🚀 FIX 2: Install the Playwright browser with all its system dependencies
-      - name: 4. Install Playwright browser and dependencies
-        run: |
-          # CRITICAL: This installs Chromium AND the required system libraries (like libnss3, libgbm-dev) 
-          # on the Ubuntu runner in one consolidated step, ensuring dynamic crawling works.
+          # CRITICAL: Installs the actual browser executable (Chromium) required by Scrapy-Playwright
           playwright install chromium --with-deps 
+          # Install NLP dependencies for keyword_analysis.py
           python -m textblob.download_corpora
           python -m nltk.downloader punkt
           
-      # ================================================================
-
-      - name: 5. Run SEO Audit (Handles JS pages)
-        # Sets the environment variables needed by main.py
+      # 5. Run SEO Audit (Handles JS pages)
+      - name: 5. Run SEO Audit
+        # Pass inputs as environment variables, which main.py expects
         env:
           AUDIT_URL: ${{ github.event.inputs.audit_url }}
           AUDIT_LEVEL: ${{ github.event.inputs.audit_level }}
@@ -73,10 +71,13 @@ jobs:
           COMPETITOR_URL: ${{ github.event.inputs.competitor_url }}
         run: python main.py
 
+      # 6. Upload SEO Audit Reports
       - name: 6. Upload SEO Audit Reports
         uses: actions/upload-artifact@v4
         with:
-          # Use consistent naming for the output folder
+          # Dynamic artifact name for easier identification
           name: seo-audit-reports-${{ github.event.inputs.audit_level }}-${{ github.event.inputs.audit_scope }}
           path: reports/
+          # Ensure the artifact is created even if the run fails partially
+          if-no-files-found: warn 
           
