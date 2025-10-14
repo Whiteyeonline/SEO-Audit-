@@ -1,5 +1,5 @@
 #requirements.txt - EXPERT VERSION (Fixed for scrapy-playwright versioning)
-Core Web Scraping/Crawling
+#Core Web Scraping/Crawling
 
 scrapy>=2.11.0
 
