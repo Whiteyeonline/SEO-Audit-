@@ -1,64 +1,60 @@
 # checks/og_tags_check.py
 from bs4 import BeautifulSoup
-import re
 
 def run_audit(response, audit_level):
     """
-    Runs the Open Graph (OG) Tags and Twitter Card check.
-    Ensures essential tags are present for robust social media sharing previews.
-    
-    This check uses the fully rendered HTML provided by the Spider (Scrapy-Playwright).
+    Checks for the presence of Open Graph (OG) and Twitter Card tags.
     """
     try:
-        # 💡 FIX: Use response.body for robust, encoding-safe parsing of the rendered HTML
         soup = BeautifulSoup(response.body, "lxml", from_encoding="utf-8")
     except Exception as e:
-        return {"error": f"Failed to parse content for OG tags check: {str(e)}"}
-    
-    # 1. Open Graph (OG) Tags Check
-    # Find all meta tags where the 'property' attribute starts with 'og:'
-    og_tags = soup.find_all('meta', property=lambda value: value and value.startswith('og:'))
-    
-    existing_og_properties = {tag.get('property'): tag.get('content') 
-                              for tag in og_tags if tag.get('property')}
-
-    # The 4 essential tags for a good preview
-    required_og_tags = ['og:title', 'og:type', 'og:image', 'og:url']
-    missing_og_tags = [tag for tag in required_og_tags if not existing_og_properties.get(tag)]
-    
-    og_tags_missing = bool(missing_og_tags)
-
-    # 2. Twitter Card Tags Check
-    # Find all meta tags where the 'name' attribute starts with 'twitter:'
-    twitter_tags = soup.find_all('meta', name=lambda value: value and value.startswith('twitter:'))
-    
-    existing_twitter_properties = {tag.get('name'): tag.get('content') 
-                                   for tag in twitter_tags if tag.get('name')}
-
-    # The 3 essential tags for a Twitter Summary Card with Large Image
-    required_twitter_tags = ['twitter:card', 'twitter:title', 'twitter:image']
-    missing_twitter_tags = [tag for tag in required_twitter_tags if not existing_twitter_properties.get(tag)]
-    
-    twitter_tags_missing = bool(missing_twitter_tags)
-
-    # 3. Overall Status and Note
-    missing_all = missing_og_tags + missing_twitter_tags
-    
-    if og_tags_missing:
-        note = f"FAIL: Missing essential OG tags: {', '.join(missing_og_tags)}. Critical for Facebook/LinkedIn previews."
-        if missing_twitter_tags:
-            note += f" Also missing Twitter tags: {', '.join(missing_twitter_tags)}."
-    elif twitter_tags_missing:
-         note = f"WARNING: OG tags are present, but missing essential Twitter tags: {', '.join(missing_twitter_tags)}."
-    else:
-        note = "PASS: All essential Open Graph and Twitter Card tags are present for robust social sharing."
+        return {"error": f"Failed to parse content for OG tag check: {str(e)}"}
         
+    og_tags = {}
+    
+    # CRITICAL FIX: Use 'property' and 'name' in a dictionary filter for robust tag finding.
+    # The error was caused by passing multiple arguments incorrectly.
+    required_og = ['og:title', 'og:description', 'og:type', 'og:url', 'og:image']
+    required_twitter = ['twitter:card', 'twitter:title', 'twitter:description', 'twitter:image']
+    
+    all_tags = []
+    
+    # 1. Find Open Graph tags
+    all_tags.extend(soup.find_all('meta', property=lambda x: x and x.startswith('og:')))
+    
+    # 2. Find Twitter tags
+    all_tags.extend(soup.find_all('meta', name=lambda x: x and x.startswith('twitter:')))
+
+    for tag in all_tags:
+        # Prioritize 'property' for OG tags, fallback to 'name' for Twitter tags
+        key = tag.get('property') or tag.get('name')
+        content = tag.get('content')
+        if key and content:
+            og_tags[key] = content
+
+    # 3. Validation Logic
+    missing_og = [tag for tag in required_og if tag not in og_tags]
+    missing_twitter = [tag for tag in required_twitter if tag not in og_tags]
+    
+    # Combine failures for aggregation
+    og_tags_fail_count = len(missing_og) + len(missing_twitter)
+    
+    if og_tags_fail_count == 0:
+        status = "PASS"
+        note = "All critical Open Graph and Twitter Card tags are present."
+    elif og_tags_fail_count < 3:
+        status = "INFO"
+        note = "Some key social tags are missing. Review missing tags for better social sharing."
+    else:
+        status = "FAIL"
+        note = "Major failure: Most critical Open Graph or Twitter Card tags are missing or malformed."
+
     return {
-        "og_tags_missing": og_tags_missing,
-        "missing_og_tags": missing_og_tags,
-        "twitter_tags_missing": twitter_tags_missing,
-        "missing_twitter_tags": missing_twitter_tags,
-        "total_missing_tags": len(missing_all),
+        "status": status,
+        "og_tags_present": bool(og_tags),
+        "missing_og_tags": missing_og,
+        "missing_twitter_tags": missing_twitter,
+        "og_tags_fail_count": og_tags_fail_count,
         "note": note
     }
     
