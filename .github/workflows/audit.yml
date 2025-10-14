@@ -4,31 +4,37 @@ name: Automated SEO Audit
 # 1. Define the trigger: Manual workflow dispatch
 on:
   workflow_dispatch:
-    # (Inputs remain correct)
     inputs:
+      # 🎯 TARGET URL INPUT
       audit_url:
-        description: 'Target URL for the SEO audit
+        description: 'Target URL for the SEO audit (e.g., https://example.com)'
         required: true
-        default:
+        default: 
+      
+      # ⚙️ AUDIT LEVEL INPUT (Basic/Standard)
       audit_level:
-        description: 'Audit scope (standard or advanced)'
+        description: 'Select the audit level (Basic focuses on meta/H1s; Advanced adds Readability/GTM/Local SEO)'
         required: true
         default: 'standard'
         type: choice
         options:
+          - basic
           - standard
-          - advanced
+          
+      # 🗺️ AUDIT SCOPE INPUT (Page Limit/Crawl Depth)
       audit_scope:
-        description: 'Crawl depth (only_onpage, indexed_pages, full_300_pages)'
+        description: 'Crawl scope and depth'
         required: true
         default: 'only_onpage'
         type: choice
         options:
-          - only_onpage
-          - indexed_pages
-          - full_300_pages
+          - only_onpage        # Single Page Crawl (Max 1 page, Depth 1)
+          - indexed_pages      # On-Page + Initial Links (Max 25 pages, Depth 2)
+          - full_300_pages     # Full SEO Audit (Max 300 pages, Depth 5)
+          
+      # 🏆 COMPETITOR INPUT
       competitor_url:
-        description: 'Optional competitor URL for analysis'
+        description: 'Optional competitor URL for analysis (Used for reference in the final report)'
         required: false
 
 jobs:
@@ -43,24 +49,29 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-          cache: 'pip' 
+          cache: 'pip'
 
-      # CRITICAL: Installs system dependencies for the browser executable
+      # 3. Install necessary system dependencies for Playwright
       - name: 3. Install Playwright system dependencies
         run: sudo apt-get update && sudo apt-get install -y libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 libgbm-dev libxkbcommon-x11-0
 
-      - name: 4. Install Python dependencies and Playwright browser
+      # 4. Install Python Dependencies (Success depends on the fixed requirements.txt)
+      - name: 4. Install Python Dependencies
         run: |
           python -m pip install --upgrade pip
-          # This line will now succeed with the corrected requirements.txt
           pip install -r requirements.txt
-          # Installs the actual Chromium executable required by Scrapy-Playwright
+          
+      # 5. Install Playwright browser and NLP data (Fixes the last error)
+      - name: 5. Install Browsers and NLP Data
+        run: |
           playwright install chromium --with-deps 
-          # Installs NLP data for keyword and content analysis
+          # CRITICAL: These must run after pip install
           python -m textblob.download_corpora
           python -m nltk.downloader punkt
           
-      - name: 5. Run SEO Audit (Handles JS pages)
+      # 6. Run SEO Audit
+      - name: 6. Run SEO Audit
+        # Passes the user-defined inputs as environment variables to main.py
         env:
           AUDIT_URL: ${{ github.event.inputs.audit_url }}
           AUDIT_LEVEL: ${{ github.event.inputs.audit_level }}
@@ -68,10 +79,11 @@ jobs:
           COMPETITOR_URL: ${{ github.event.inputs.competitor_url }}
         run: python main.py
 
-      - name: 6. Upload SEO Audit Reports
+      # 7. Upload SEO Audit Reports
+      - name: 7. Upload SEO Audit Reports
         uses: actions/upload-artifact@v4
         with:
           name: seo-audit-reports-${{ github.event.inputs.audit_level }}-${{ github.event.inputs.audit_scope }}
           path: reports/
-          if-no-files-found: warn 
+          if-no-files-found: warn
           
