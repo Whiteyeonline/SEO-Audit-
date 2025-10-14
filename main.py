@@ -6,17 +6,18 @@ import logging
 import sys
 from scrapy.crawler import CrawlerProcess
 from scrapy.settings import Settings
+
+# Relative imports from your project structure
 from crawler.spider import SEOSpider
-# get_check_aggregation is still imported but the critical scoring logic will be more robust
 from utils.report_writer import write_summary_report, get_check_aggregation 
-# ... (all check imports remain the same) ...
+
+# --- Import all Check Modules ---
 from checks import (
     ssl_check, robots_sitemap, performance_check, keyword_analysis,
     local_seo_check, meta_check, heading_check, image_check, link_check,
     schema_check, url_structure, internal_links, canonical_check,
     content_quality, accessibility_check, mobile_friendly_check,
     backlinks_check, analytics_check,
-    # === NEW CHECKS ADDED ===
     og_tags_check, 
     redirect_check, 
     core_web_vitals_check 
@@ -28,31 +29,47 @@ ALL_CHECKS_MODULES = [
     schema_check, url_structure, internal_links, canonical_check,
     content_quality, accessibility_check, mobile_friendly_check,
     backlinks_check, analytics_check,
-    # === NEW CHECKS ADDED ===
     og_tags_check, 
     redirect_check, 
     core_web_vitals_check
 ]
 
-# === FINALIZED STABILITY SETTINGS FOR SCRAPY-PLAYWRIGHT ===
-# ... (CUSTOM_SETTINGS remain the same, they are correct) ...
+# --- EXPERT WEIGHTED PENALTY SYSTEM ---
+# This dictionary defines what constitutes a "Critical" issue and its score impact.
+# Format: { 'aggregation_key_from_report_writer': penalty_weight_per_instance }
+CRITICAL_ISSUE_WEIGHTS = {
+    'title_fail_count': 10,        # Missing or bad Title is a major SEO failure
+    'desc_fail_count': 5,         # Missing meta description
+    'h1_fail_count': 10,           # Missing or multiple H1
+    'link_broken_total': 2,        # Moderate penalty per broken link
+    'mobile_unfriendly_count': 15, # Very high penalty for being unusable on mobile
+    'robots_sitemap_fail_count': 5, # Missing sitemap/robots
+    'canonical_mismatch_count': 5, # Canonical issues
+    'ssl_check_fail_count': 20,    # Critical: Missing/expired SSL
+}
+MAX_TOTAL_PENALTY = 70 # Ensures a minimum score of 30/100
+
+# --- FINALIZED STABILITY SETTINGS FOR SCRAPY-PLAYWRIGHT ---
 CUSTOM_SETTINGS = {
     'USER_AGENT': 'ProfessionalSEOAgency (+https://github.com/your-repo)',
     'ROBOTSTXT_OBEY': False,
     'LOG_LEVEL': 'INFO',
     'CLOSESPIDER_PAGECOUNT': 250,
+    # Added for stability and consistency across runs
+    'REQUEST_FINGERPRINTER_IMPLEMENTATION': '2.7', 
     'TELNET_ENABLED': False,
+    'DOWNLOAD_TIMEOUT': 90, 
+    'RETRY_TIMES': 0, 
+    'DEPTH_LIMIT': 3, # Prevent deep infinite loops by default
     
-    # Required for Scrapy-Playwright
-    'TWISTED_REACTOR': 'twisted.internet.asyncioreactor.AsyncioSelectorReactor',
-    # Enables Playwright for handling JavaScript/Dynamic Content
+    # Required for Scrapy-Playwright (Twisted setting is now in requirements.txt)
     'DOWNLOAD_HANDLERS': {
         'http': 'scrapy_playwright.handler.ScrapyPlaywrightDownloadHandler',
         'https': 'scrapy_playwright.handler.ScrapyPlaywrightDownloadHandler',
     },
     'PLAYWRIGHT_LAUNCH_OPTIONS': {
         'headless': True,
-        'timeout': 60000, # Browser launch timeout (60s)
+        'timeout': 60000, 
         'args': [
             '--disable-blink-features=AutomationControlled',
             '--no-sandbox', 
@@ -60,11 +77,9 @@ CUSTOM_SETTINGS = {
     },
     'PLAYWRIGHT_BROWSER_TYPE': 'chromium',
     'PLAYWRIGHT_DEFAULT_NAVIGATION_TIMEOUT': 90000, 
-    'DOWNLOAD_TIMEOUT': 90, 
-    'RETRY_TIMES': 0, 
     'PLAYWRIGHT_CONTEXT_ARGS': {
         'viewport': {'width': 1280, 'height': 720},
-        'wait_until': 'load', 
+        'wait_until': 'domcontentloaded', # More efficient than 'load' for checks
         'bypass_csp': True,
         'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
     },
@@ -75,7 +90,6 @@ CUSTOM_SETTINGS = {
     'FEED_EXPORT_ENCODING': 'utf-8',
     'CONCURRENT_REQUESTS': 2,
     'DOWNLOAD_DELAY': 3.0,
-    
     'LOG_ENABLED': False, 
 }
 
@@ -83,7 +97,7 @@ CUSTOM_SETTINGS = {
 
 def load_and_generate_reports(settings, AUDIT_URL, AUDIT_LEVEL, COMPETITOR_URL, AUDIT_SCOPE):
     """
-    Loads crawl results and generates the final reports.
+    Loads crawl results, calculates the final score, and generates the reports.
     """
     crawl_results = []
     crawl_file_path = settings.get('FEED_URI')
@@ -108,7 +122,7 @@ def load_and_generate_reports(settings, AUDIT_URL, AUDIT_LEVEL, COMPETITOR_URL, 
         print(f"WARNING: {error_message}")
 
 
-    # 3. Prepare Data Structure
+    # 1. Separate Initial Checks from Crawled Pages
     initial_checks = next((item['checks'] for item in crawl_results if item.get('url') == 'INITIAL_CHECKS'), {})
     crawled_pages = [item for item in crawl_results if item.get('url') != 'INITIAL_CHECKS']
     total_pages_crawled = len(crawled_pages)
@@ -118,45 +132,29 @@ def load_and_generate_reports(settings, AUDIT_URL, AUDIT_LEVEL, COMPETITOR_URL, 
         aggregation = {'total_pages_crawled': 0}
         final_score = 100 
     else:
-        # Use report_writer for full aggregation, but calculate score robustly
+        # 2. Get Aggregation from report_writer.py
+        # NOTE: The scoring logic in report_writer.py will be removed in the next step.
         aggregation = get_check_aggregation(crawled_pages) 
         
-        # ✅ FIX: Robust scoring logic by re-iterating and counting CRITICAL failures
-        critical_issues_count = 0
+        # 3. Calculate Robust Score using Centralized Weighted Penalties
+        total_penalty = 0
         
-        for page in crawled_pages:
-            checks = page.get('checks', {})
+        for agg_key, penalty_weight in CRITICAL_ISSUE_WEIGHTS.items():
+            # Get the count from the aggregated issues dict, default to 0
+            issue_count = aggregation.get(agg_key, 0)
             
-            # --- CRITICAL FAILURE CHECKS (Using correct keys now) ---
-            
-            # 1. Meta Tags (Title/Description)
-            meta = checks.get('meta_check', {})
-            if meta.get('title_fail'): 
-                critical_issues_count += 1
-            if meta.get('desc_fail'): 
-                critical_issues_count += 1
-                
-            # 2. Heading Structure (Missing or multiple H1)
-            heading = checks.get('heading_check', {})
-            if heading.get('h1_fail'): 
-                critical_issues_count += 1
-            
-            # 3. Broken Links (If the page has ANY broken links, count as one critical issue for that page)
-            links = checks.get('link_check', {})
-            if links.get('broken_link_count', 0) > 0:
-                critical_issues_count += 1 
-                
-            # 4. Mobile Friendliness
-            mobile = checks.get('mobile_friendly_check', {})
-            # Check if 'mobile_friendly' key exists and is False
-            if mobile.get('mobile_friendly') is False:
-                critical_issues_count += 1
+            # Apply penalty: total_penalty += count * weight
+            total_penalty += issue_count * penalty_weight
+
+        # Cap the total penalty to prevent an impossibly low score
+        final_penalty = min(total_penalty, MAX_TOTAL_PENALTY)
+        final_score = max(100 - final_penalty, 30) # Score cannot drop below 30
         
-        # Apply Scoring: 5 points penalty per critical issue, capped at 50 points
-        penalty = min(critical_issues_count * 5, 50) 
-        final_score = max(100 - penalty, 50) # Score cannot drop below 50
+        # Add the calculated score back into the aggregation for posterity
+        aggregation['calculated_score'] = final_score
 
 
+    # 4. Prepare Final Data Structure
     structured_report_data = {
         'audit_details': {
             'target_url': AUDIT_URL,
@@ -164,7 +162,8 @@ def load_and_generate_reports(settings, AUDIT_URL, AUDIT_LEVEL, COMPETITOR_URL, 
             'competitor_url': COMPETITOR_URL,
             'audit_scope': AUDIT_SCOPE,
         },
-        'final_score': final_score,
+        # Pass the SINGLE, consistent score
+        'final_score': final_score, 
         'crawled_pages': crawled_pages,
         'total_pages_crawled': total_pages_crawled,
         'aggregated_issues': aggregation,
@@ -172,17 +171,18 @@ def load_and_generate_reports(settings, AUDIT_URL, AUDIT_LEVEL, COMPETITOR_URL, 
         'crawl_error': error_message
     }
 
-    # 4. Write both final report files
+    # 5. Write both final report files
     structured_file_path = "reports/seo_audit_structured_report.json"
     with open(structured_file_path, 'w', encoding='utf-8') as f:
         json.dump(structured_report_data, f, indent=4)
     print(f"\nStructured report saved to: {structured_file_path}")
 
     markdown_file_path = "reports/seo_professional_report.md"
-    write_summary_report(structured_report_data, final_score, markdown_file_path) 
+    # Pass the entire data structure, including the score
+    write_summary_report(structured_report_data, markdown_file_path) 
 
     print(f"\nSummary report saved to: {markdown_file_path}")
-    print(f"\nPages Crawled: {total_pages_crawled}")
+    print(f"\nPages Crawled: {total_pages_crawled} | Final Score: {final_score}/100")
 
 # --- Main Execution Flow ---
 def main():
@@ -201,14 +201,18 @@ def main():
     
     settings.set('AUDIT_LEVEL', AUDIT_LEVEL)
     settings.set('AUDIT_SCOPE', AUDIT_SCOPE)
-
+    
+    # Set CLOSESPIDER_PAGECOUNT and DEPTH_LIMIT based on scope
     if AUDIT_SCOPE == 'only_onpage':
         settings.set('CLOSESPIDER_PAGECOUNT', 1)
+        settings.set('DEPTH_LIMIT', 1)
     elif AUDIT_SCOPE == 'indexed_pages':
         settings.set('CLOSESPIDER_PAGECOUNT', 25)
+        settings.set('DEPTH_LIMIT', 2)
     elif AUDIT_SCOPE == 'full_300_pages':
         settings.set('CLOSESPIDER_PAGECOUNT', 300)
-    
+        settings.set('DEPTH_LIMIT', 5) # Reasonable maximum depth
+
     max_pages_count = settings.getint('CLOSESPIDER_PAGECOUNT')
 
     process = CrawlerProcess(settings)
