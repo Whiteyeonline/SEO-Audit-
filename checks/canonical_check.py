@@ -1,61 +1,16 @@
 # checks/canonical_check.py
 from bs4 import BeautifulSoup
 from urllib.parse import urlparse, urlunparse
-import time # Added for demonstration of potential delay/fallback
 
-# IMPORTANT: You must implement this function outside of the check,
-# or ensure your environment allows synchronous calls to a rendering tool.
-# This function is a placeholder for your Playwright/Selenium implementation.
-def _get_rendered_html(url):
+def _get_soup(response):
     """
-    *** PLACEHOLDER FOR JAVASCRIPT RENDERING LOGIC ***
-    
-    In your actual environment, this function should:
-    1. Launch a headless browser (e.g., Playwright's sync API).
-    2. Navigate to the URL and wait for the page to load.
-    3. Return the fully rendered HTML as a string.
-    
-    For now, we'll simulate a success on the second attempt.
+    Creates a BeautifulSoup object from the response body.
+    NOTE: When the spider uses Playwright, response.body contains the 
+    fully JavaScript-rendered content, making this check robust for 
+    all page types (static, dynamic, JS-driven).
     """
-    print(f"INFO: Falling back to JS rendering for: {url}")
-    # Simulate a delay for rendering
-    time.sleep(1) 
-    
-    # In a real environment, you would call Playwright/Selenium here:
-    # return page.content() 
-    
-    # Since we can't run Playwright, we return the original, static content
-    # assuming the *actual* issue was the parsing error you saw, and we fix it below.
-    # In the real world, you'd be returning the rendered content here.
-    return None # Return None to force the error handling below
-
-def _get_static_or_rendered_soup(response):
-    """Tries static parsing, falls back to JS rendering if canonical tag is missing."""
-    
-    # 1. First Attempt: Static Parsing
-    try:
-        # Use response.body (bytes) for most robust parsing
-        soup = BeautifulSoup(response.body, "lxml", from_encoding="utf-8")
-        
-        # Check if canonical tag is present in the static HTML
-        if soup.find('link', rel='canonical'):
-            return soup
-        
-        # If no canonical tag is found, it might be injected by JS, proceed to fallback
-    except Exception as e:
-        # If static parsing fails (e.g., the original 'bytes-like object' error)
-        print(f"WARN: Static parsing failed or tag missing. Exception: {str(e)}")
-        pass # Fall through to rendering
-        
-    # 2. Second Attempt: JS Rendering Fallback
-    rendered_html = _get_rendered_html(response.url)
-    
-    if rendered_html:
-        # Reparse the content from the headless browser
-        return BeautifulSoup(rendered_html, "lxml", from_encoding="utf-8")
-        
-    # If rendering also fails (or we returned None in the placeholder)
-    return BeautifulSoup("", "lxml") # Return empty soup to force a clear FAIL result
+    # Use 'lxml' for speed and response.text (or response.body) for content
+    return BeautifulSoup(response.body, "lxml", from_encoding="utf-8")
 
 
 def _clean_url(url):
@@ -63,21 +18,31 @@ def _clean_url(url):
     Strips protocol, www, query, and fragments for a clean comparison.
     """
     if not url:
-        return url
+        return None
         
-    url = url.lower().replace('https://', '').replace('http://', '').replace('www.', '').rstrip('/')
+    url = url.lower()
     parsed = urlparse(url)
+    
+    # Remove fragments and queries for the comparison
     cleaned_url = urlunparse(parsed._replace(fragment='', query=''))
+    
+    # Strip protocol, www, and trailing slash for a true canonical comparison
+    cleaned_url = cleaned_url.replace('https://', '').replace('http://', '').replace('www.', '').rstrip('/')
+    
     return cleaned_url
 
 def run_audit(response, audit_level):
     """
-    Runs the Canonical Check, prioritizing a static fetch but falling back to JS rendering.
+    Runs the Canonical Check against the fully rendered HTML provided by the Spider.
     """
-    # Use the new helper to get the most complete content
-    soup = _get_static_or_rendered_soup(response)
+    try:
+        soup = _get_soup(response)
+    except Exception as e:
+        return {"error": f"Failed to parse content for canonical check: {str(e)}"}
+
 
     current_url = response.url
+    # Find the canonical tag using a CSS selector for robustness
     canonical_tag = soup.find('link', rel='canonical')
     canonical_url = canonical_tag.get('href') if canonical_tag and canonical_tag.get('href') else None
     
@@ -86,17 +51,23 @@ def run_audit(response, audit_level):
     
     is_amp_page = '/amp/' in current_url.lower()
     canonical_mismatch = False
-    note = "PASS: Canonical tag correctly points to the current page or is not necessary."
+    note = "PASS: No canonical tag found, but this is acceptable only if the page has no duplicate content risk."
 
-    # --- Canonical Comparison Logic (Unchanged) ---
+    # --- Canonical Comparison Logic ---
     if canonical_url:
         normalized_current = _clean_url(current_url)
         normalized_canonical = _clean_url(canonical_url)
         
-        if normalized_current != normalized_canonical:
+        # Check for absolute URL format
+        if not urlparse(canonical_url).netloc:
+             canonical_mismatch = True
+             note = f"FAIL: Canonical tag must use an absolute URL (e.g., must include 'http/https'). Found: '{canonical_url}'."
+        elif normalized_current != normalized_canonical:
+            # Check for standard mismatch
             canonical_mismatch = True
-            note = f"FAIL: Canonical tag points to a different URL: '{canonical_url}'."
+            note = f"FAIL: Canonical tag points to a different URL: '{canonical_url}'. This indicates duplication or a rel=canonical implementation error."
             
+            # Special case: AMP to non-AMP is a *passing* mismatch
             if is_amp_page and '/amp/' not in canonical_url.lower():
                 canonical_mismatch = False
                 note = f"PASS: AMP page correctly canonicalizes to non-AMP URL: '{canonical_url}'."
@@ -105,15 +76,16 @@ def run_audit(response, audit_level):
             note = f"PASS: Canonical tag correctly points to the page itself: '{canonical_url}'."
             
     else:
+        # If no canonical URL is present
         canonical_mismatch = True
         note = "FAIL: No <link rel='canonical'> tag found. This is necessary for pages with filtering/sorting or where duplicate content is possible."
         
-    # --- AMPhtml Link Check (Unchanged) ---
+    # --- AMPhtml Link Check ---
     amphtml_note = ""
     if amphtml_url and not is_amp_page:
         amphtml_note = f" | INFO: Found <link rel='amphtml'> pointing to AMP version: '{amphtml_url}'."
-    elif not amphtml_url and not is_amp_page:
-        amphtml_note = " | INFO: Non-AMP page missing <link rel='amphtml'>. Consider adding one if an AMP version exists."
+    elif not amphtml_url and is_amp_page:
+        amphtml_note = " | WARNING: AMP page detected, but no `rel='canonical'` back to the non-AMP page was found."
     
     return {
         "canonical_url": canonical_url,
@@ -122,5 +94,5 @@ def run_audit(response, audit_level):
         "canonical_mismatch": canonical_mismatch,
         "amphtml_url": amphtml_url,
         "note": f"{note}{amphtml_note}"
-    }
-
+            }
+        
