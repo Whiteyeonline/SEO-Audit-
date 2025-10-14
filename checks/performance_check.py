@@ -60,5 +60,5 @@ def run_audit(response, audit_level):
         'response_time_ms': response_time,
         'http_status': http_status,
         'status': result
-            }
+    }
     
