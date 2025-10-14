@@ -1,9 +1,8 @@
-# requirements.txt - EXPERT VERSION (FIXED)
+# requirements.txt - EXPERT VERSION (FINAL FIX)
 
 # Core Web Scraping/Crawling
 scrapy>=2.11.0
-# 🔥 FIX: Removed non-existent version constraint. 
-# This line will now install the latest stable scrapy-playwright (e.g., 0.0.44).
+# FIXED: Using latest version, removing strict non-existent constraint
 scrapy-playwright
 playwright>=1.47.0
 # Explicitly including Twisted for stable Scrapy performance
@@ -13,6 +12,8 @@ Twisted>=22.10.0
 requests>=2.31.0
 textblob>=0.18.0
 nltk>=3.8.1
+# 🔥 CRITICAL FIX: Add the missing package for readability checks
+textstat>=0.7.1 
 
 # HTML Parsing and Manipulation
 beautifulsoup4>=4.12.3
