@@ -1,4 +1,4 @@
-# main.py (Finalized with Competitor Analysis and New Report Writers)
+# main.py (Finalized with Deep Competitor Analysis using Playwright)
 
 import os
 import json
@@ -6,16 +6,21 @@ import logging
 import sys
 from scrapy.crawler import CrawlerProcess
 from scrapy.settings import Settings
-from collections import defaultdict # Added for aggregation
+from collections import defaultdict
+from twisted.internet import reactor # Required for running two spiders sequentially
 
 # Relative imports from your project structure
 from crawler.spider import SEOSpider
+# NEW: Import the dedicated competitor spider
+from crawler.competitor_spider import CompetitorSpider 
 # MODIFIED: Import new report writer functions
 from utils.report_writer import write_summary_report, get_check_aggregation, write_json_report, write_markdown_report
-# NEW: Import for external competitor check
-from checks.competitor_analysis_util import run_competitor_audit 
+# REMOVE: We no longer need the simple utility check
+# from checks.competitor_analysis_util import run_competitor_audit 
+
 
 # --- Import all Check Modules (LOGIC REMAINS SAME) ---
+# ... (ALL_CHECKS_MODULES list remains the same) ...
 from checks import (
     ssl_check, robots_sitemap, performance_check, keyword_analysis,
     local_seo_check, meta_check, heading_check, image_check, link_check,
@@ -40,31 +45,30 @@ ALL_CHECKS_MODULES = [
 
 # --- EXPERT WEIGHTED PENALTY SYSTEM (LOGIC REMAINS SAME) ---
 CRITICAL_ISSUE_WEIGHTS = {
-    'title_fail_count': 10,        # Missing or bad Title is a major SEO failure
-    'desc_fail_count': 5,         # Missing meta description
-    'h1_fail_count': 10,           # Missing or multiple H1
-    'link_broken_total': 2,        # Moderate penalty per broken link
-    'mobile_unfriendly_count': 15, # Very high penalty for being unusable on mobile
-    'robots_sitemap_fail_count': 5, # Missing sitemap/robots
-    'canonical_mismatch_count': 5, # Canonical issues
-    'ssl_check_fail_count': 20,    # Critical: Missing/expired SSL
+    'title_fail_count': 10,
+    'desc_fail_count': 5,
+    'h1_fail_count': 10,
+    'link_broken_total': 2,
+    'mobile_unfriendly_count': 15,
+    'robots_sitemap_fail_count': 5,
+    'canonical_mismatch_count': 5,
+    'ssl_check_fail_count': 20,
 }
-MAX_TOTAL_PENALTY = 70 
+MAX_TOTAL_PENALTY = 70
 
 # --- FINALIZED STABILITY SETTINGS FOR SCRAPY-PLAYWRIGHT (LOGIC REMAINS SAME) ---
 CUSTOM_SETTINGS = {
+    # ... (All existing settings remain the same) ...
     'USER_AGENT': 'ProfessionalSEOAgency (+https://github.com/your-repo)',
     'ROBOTSTXT_OBEY': False,
     'LOG_LEVEL': 'INFO',
     'CLOSESPIDER_PAGECOUNT': 250,
-    # Added for stability and consistency across runs
     'REQUEST_FINGERPRINTER_IMPLEMENTATION': '2.7', 
     'TELNET_ENABLED': False,
     'DOWNLOAD_TIMEOUT': 90, 
     'RETRY_TIMES': 0, 
     'DEPTH_LIMIT': 3,
     
-    # Required for Scrapy-Playwright
     'DOWNLOAD_HANDLERS': {
         'http': 'scrapy_playwright.handler.ScrapyPlaywrightDownloadHandler',
         'https': 'scrapy_playwright.handler.ScrapyPlaywrightDownloadHandler',
@@ -86,7 +90,6 @@ CUSTOM_SETTINGS = {
         'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
     },
     
-    # Feed Export Settings for the crawl results
     'FEED_FORMAT': 'json',
     'FEED_URI': 'reports/crawl_results.json',
     'FEED_EXPORT_ENCODING': 'utf-8',
@@ -102,9 +105,11 @@ def load_and_generate_reports(settings, AUDIT_URL, AUDIT_LEVEL, COMPETITOR_URL, 
     Loads crawl results, calculates the final score, and generates the reports.
     """
     crawl_results = []
+    competitor_results = [] # NEW: Initialize competitor results
     crawl_file_path = settings.get('FEED_URI')
     error_message = None
 
+    # --- 1. Load Main Crawl Results ---
     if os.path.exists(crawl_file_path) and os.path.getsize(crawl_file_path) > 0:
         try:
             with open(crawl_file_path, 'r', encoding='utf-8') as f:
@@ -122,45 +127,42 @@ def load_and_generate_reports(settings, AUDIT_URL, AUDIT_LEVEL, COMPETITOR_URL, 
     
     if error_message:
         print(f"WARNING: {error_message}")
-
-
-    # 1. Separate Initial Checks from Crawled Pages
-    initial_checks_from_crawl = next((item['checks'] for item in crawl_results if item.get('url') == 'INITIAL_CHECKS'), {})
+        
+    # --- 2. Load Competitor Crawl Results ---
+    competitor_file_path = 'reports/competitor_results.json'
+    if COMPETITOR_URL and os.path.exists(competitor_file_path) and os.path.getsize(competitor_file_path) > 0:
+        try:
+            with open(competitor_file_path, 'r', encoding='utf-8') as f:
+                competitor_results = json.load(f)
+            print(f"Competitor analysis results loaded for {COMPETITOR_URL}")
+        except json.JSONDecodeError:
+            print("WARNING: Failed to decode competitor results JSON.")
+            competitor_results = []
+    
+    # 3. Separate Initial Checks from Crawled Pages
+    initial_checks = next((item['checks'] for item in crawl_results if item.get('url') == 'INITIAL_CHECKS'), {})
     crawled_pages = [item for item in crawl_results if item.get('url') != 'INITIAL_CHECKS']
     total_pages_crawled = len(crawled_pages)
     
-    # 2. NEW STEP: Run External Competitor Analysis Check
-    competitor_check_data = run_competitor_audit(COMPETITOR_URL)
     
-    # 3. Combine All Initial Checks (Crawl-dependent and External)
-    initial_checks = initial_checks_from_crawl
-    initial_checks.update(competitor_check_data)
-    
-
     if total_pages_crawled == 0:
         # If crawl failed completely (Pages Crawled: 0), default to a neutral score
         aggregation = {'total_pages_crawled': 0}
         final_score = 100 
     else:
         # 4. Get Aggregation from report_writer.py (UPDATED CALL)
-        # Pass both initial checks (for SSL/Robots/etc.) and crawled pages
         aggregation = get_check_aggregation(initial_checks, crawled_pages) 
         
         # 5. Calculate Robust Score using Centralized Weighted Penalties
         total_penalty = 0
         
         for agg_key, penalty_weight in CRITICAL_ISSUE_WEIGHTS.items():
-            # Get the count from the aggregated issues dict, default to 0
             issue_count = aggregation.get(agg_key, 0)
-            
-            # Apply penalty: total_penalty += count * weight
             total_penalty += issue_count * penalty_weight
 
-        # Cap the total penalty to prevent an impossibly low score
         final_penalty = min(total_penalty, MAX_TOTAL_PENALTY)
-        final_score = max(100 - final_penalty, 30) # Score cannot drop below 30
+        final_score = max(100 - final_penalty, 30)
         
-        # Add the calculated score back into the aggregation for posterity
         aggregation['calculated_score'] = final_score
 
 
@@ -176,7 +178,8 @@ def load_and_generate_reports(settings, AUDIT_URL, AUDIT_LEVEL, COMPETITOR_URL, 
         'crawled_pages': crawled_pages,
         'total_pages_crawled': total_pages_crawled,
         'aggregated_issues': aggregation,
-        'basic_checks': initial_checks, # Now includes competitor analysis
+        'basic_checks': initial_checks,
+        'competitor_analysis': competitor_results[0] if competitor_results else None, # Store the full competitor audit results
         'crawl_error': error_message
     }
 
@@ -190,12 +193,11 @@ def load_and_generate_reports(settings, AUDIT_URL, AUDIT_LEVEL, COMPETITOR_URL, 
     write_json_report(structured_report_data, "reports/seo_audit_report.json")
     write_markdown_report(structured_report_data, "reports/seo_professional_report.md")
 
-    # Original summary report call (assumed to generate a simple text/console output)
     write_summary_report(structured_report_data, "reports/seo_simple_summary.txt") 
 
     print(f"\nPages Crawled: {total_pages_crawled} | Final Score: {final_score}/100")
 
-# --- Main Execution Flow (LOGIC REMAINS SAME) ---
+# --- Main Execution Flow (MODIFIED) ---
 def main():
     try:
         AUDIT_URL = os.environ['AUDIT_URL']
@@ -227,14 +229,30 @@ def main():
     max_pages_count = settings.getint('CLOSESPIDER_PAGECOUNT')
 
     process = CrawlerProcess(settings)
+
+    # --- NEW: Run Competitor Spider first if URL is provided ---
+    if COMPETITOR_URL:
+        print(f"Starting DEEP Competitor Audit for {COMPETITOR_URL} (Homepage only, full checks)...")
+        # Run the Competitor Spider
+        process.crawl(CompetitorSpider, start_url=COMPETITOR_URL, all_checks=ALL_CHECKS_MODULES)
+
+    # --- Run Main Audit Spider ---
+    print(f"\nStarting Main SEO Audit for {AUDIT_URL}...")
+    print(f"Level: {AUDIT_LEVEL.capitalize()} | Scope: {AUDIT_SCOPE.replace('_', ' ')} (Max pages: {max_pages_count})\n")
+    # Run the Main Spider
     process.crawl(SEOSpider, start_url=AUDIT_URL, max_pages_config=max_pages_count, all_checks=ALL_CHECKS_MODULES)
 
-    print(f"\nStarting SEO Audit for {AUDIT_URL}...")
-    print(f"Level: {AUDIT_LEVEL.capitalize()} | Scope: {AUDIT_SCOPE.replace('_', ' ')} (Max pages: {max_pages_count})\n")
-
+    # Start the process. If two crawls are scheduled, they run sequentially (Scrapy behavior)
     process.start() 
     
     load_and_generate_reports(settings, AUDIT_URL, AUDIT_LEVEL, COMPETITOR_URL, AUDIT_SCOPE)
 
 if __name__ == "__main__":
-    main()
+    # Ensure the twisted reactor is stopped after all crawls are done
+    try:
+        main()
+    except SystemExit:
+        pass
+    except Exception as e:
+        print(f"An error occurred: {e}")
+    
