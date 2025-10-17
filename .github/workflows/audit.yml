@@ -14,7 +14,7 @@ on:
       
       # ⚙️ AUDIT LEVEL INPUT (Basic/Standard)
       audit_level:
-        description: 'Select the audit level (Basic, Standard, Advanced)'
+        description: 'Select the audit level (Basic, Standard)'
         required: true
         default: 'standard'
         type: choice
@@ -36,9 +36,9 @@ on:
           # Corresponds to max_pages_config=300 (Full SEO Audit)
           - full_300_pages     
           
-      # 🏆 COMPETITOR INPUT
+      # 🏆 COMPETITOR INPUT (NEW)
       competitor_url:
-        description: 'Optional competitor URL for analysis (Used for reference in the final report)'
+        description: 'Optional competitor URL for deep comparison (e.g., https://competitor.com)'
         required: false
 
 jobs:
@@ -59,7 +59,7 @@ jobs:
       - name: 3. Install Playwright system dependencies
         run: sudo apt-get update && sudo apt-get install -y libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 libgbm-dev libxkbcommon-x11-0
 
-      # 4. Install Python Dependencies (Includes the necessary textstat fix)
+      # 4. Install Python Dependencies
       - name: 4. Install Python Dependencies
         run: |
           python -m pip install --upgrade pip
@@ -79,6 +79,7 @@ jobs:
           AUDIT_URL: ${{ github.event.inputs.audit_url }}
           AUDIT_LEVEL: ${{ github.event.inputs.audit_level }}
           AUDIT_SCOPE: ${{ github.event.inputs.audit_scope }}
+          # The key variable for the new competitor feature:
           COMPETITOR_URL: ${{ github.event.inputs.competitor_url }}
         run: python main.py
 
