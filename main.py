@@ -1,4 +1,4 @@
-# main.py
+# main.py (Finalized with Competitor Analysis and New Report Writers)
 
 import os
 import json
@@ -6,12 +6,16 @@ import logging
 import sys
 from scrapy.crawler import CrawlerProcess
 from scrapy.settings import Settings
+from collections import defaultdict # Added for aggregation
 
 # Relative imports from your project structure
 from crawler.spider import SEOSpider
-from utils.report_writer import write_summary_report, get_check_aggregation 
+# MODIFIED: Import new report writer functions
+from utils.report_writer import write_summary_report, get_check_aggregation, write_json_report, write_markdown_report
+# NEW: Import for external competitor check
+from checks.competitor_analysis_util import run_competitor_audit 
 
-# --- Import all Check Modules ---
+# --- Import all Check Modules (LOGIC REMAINS SAME) ---
 from checks import (
     ssl_check, robots_sitemap, performance_check, keyword_analysis,
     local_seo_check, meta_check, heading_check, image_check, link_check,
@@ -34,9 +38,7 @@ ALL_CHECKS_MODULES = [
     core_web_vitals_check
 ]
 
-# --- EXPERT WEIGHTED PENALTY SYSTEM ---
-# This dictionary defines what constitutes a "Critical" issue and its score impact.
-# Format: { 'aggregation_key_from_report_writer': penalty_weight_per_instance }
+# --- EXPERT WEIGHTED PENALTY SYSTEM (LOGIC REMAINS SAME) ---
 CRITICAL_ISSUE_WEIGHTS = {
     'title_fail_count': 10,        # Missing or bad Title is a major SEO failure
     'desc_fail_count': 5,         # Missing meta description
@@ -47,9 +49,9 @@ CRITICAL_ISSUE_WEIGHTS = {
     'canonical_mismatch_count': 5, # Canonical issues
     'ssl_check_fail_count': 20,    # Critical: Missing/expired SSL
 }
-MAX_TOTAL_PENALTY = 70 # Ensures a minimum score of 30/100
+MAX_TOTAL_PENALTY = 70 
 
-# --- FINALIZED STABILITY SETTINGS FOR SCRAPY-PLAYWRIGHT ---
+# --- FINALIZED STABILITY SETTINGS FOR SCRAPY-PLAYWRIGHT (LOGIC REMAINS SAME) ---
 CUSTOM_SETTINGS = {
     'USER_AGENT': 'ProfessionalSEOAgency (+https://github.com/your-repo)',
     'ROBOTSTXT_OBEY': False,
@@ -60,9 +62,9 @@ CUSTOM_SETTINGS = {
     'TELNET_ENABLED': False,
     'DOWNLOAD_TIMEOUT': 90, 
     'RETRY_TIMES': 0, 
-    'DEPTH_LIMIT': 3, # Prevent deep infinite loops by default
+    'DEPTH_LIMIT': 3,
     
-    # Required for Scrapy-Playwright (Twisted setting is now in requirements.txt)
+    # Required for Scrapy-Playwright
     'DOWNLOAD_HANDLERS': {
         'http': 'scrapy_playwright.handler.ScrapyPlaywrightDownloadHandler',
         'https': 'scrapy_playwright.handler.ScrapyPlaywrightDownloadHandler',
@@ -79,7 +81,7 @@ CUSTOM_SETTINGS = {
     'PLAYWRIGHT_DEFAULT_NAVIGATION_TIMEOUT': 90000, 
     'PLAYWRIGHT_CONTEXT_ARGS': {
         'viewport': {'width': 1280, 'height': 720},
-        'wait_until': 'domcontentloaded', # More efficient than 'load' for checks
+        'wait_until': 'domcontentloaded', 
         'bypass_csp': True,
         'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
     },
@@ -123,20 +125,28 @@ def load_and_generate_reports(settings, AUDIT_URL, AUDIT_LEVEL, COMPETITOR_URL, 
 
 
     # 1. Separate Initial Checks from Crawled Pages
-    initial_checks = next((item['checks'] for item in crawl_results if item.get('url') == 'INITIAL_CHECKS'), {})
+    initial_checks_from_crawl = next((item['checks'] for item in crawl_results if item.get('url') == 'INITIAL_CHECKS'), {})
     crawled_pages = [item for item in crawl_results if item.get('url') != 'INITIAL_CHECKS']
     total_pages_crawled = len(crawled_pages)
+    
+    # 2. NEW STEP: Run External Competitor Analysis Check
+    competitor_check_data = run_competitor_audit(COMPETITOR_URL)
+    
+    # 3. Combine All Initial Checks (Crawl-dependent and External)
+    initial_checks = initial_checks_from_crawl
+    initial_checks.update(competitor_check_data)
+    
 
     if total_pages_crawled == 0:
         # If crawl failed completely (Pages Crawled: 0), default to a neutral score
         aggregation = {'total_pages_crawled': 0}
         final_score = 100 
     else:
-        # 2. Get Aggregation from report_writer.py
-        # NOTE: The scoring logic in report_writer.py will be removed in the next step.
-        aggregation = get_check_aggregation(crawled_pages) 
+        # 4. Get Aggregation from report_writer.py (UPDATED CALL)
+        # Pass both initial checks (for SSL/Robots/etc.) and crawled pages
+        aggregation = get_check_aggregation(initial_checks, crawled_pages) 
         
-        # 3. Calculate Robust Score using Centralized Weighted Penalties
+        # 5. Calculate Robust Score using Centralized Weighted Penalties
         total_penalty = 0
         
         for agg_key, penalty_weight in CRITICAL_ISSUE_WEIGHTS.items():
@@ -154,37 +164,38 @@ def load_and_generate_reports(settings, AUDIT_URL, AUDIT_LEVEL, COMPETITOR_URL, 
         aggregation['calculated_score'] = final_score
 
 
-    # 4. Prepare Final Data Structure
+    # 6. Prepare Final Data Structure
     structured_report_data = {
         'audit_details': {
             'target_url': AUDIT_URL,
             'audit_level': AUDIT_LEVEL,
-            'competitor_url': COMPETITOR_URL,
+            'competitor_url': COMPETITOR_URL if COMPETITOR_URL else 'N/A',
             'audit_scope': AUDIT_SCOPE,
         },
-        # Pass the SINGLE, consistent score
         'final_score': final_score, 
         'crawled_pages': crawled_pages,
         'total_pages_crawled': total_pages_crawled,
         'aggregated_issues': aggregation,
-        'basic_checks': initial_checks,
+        'basic_checks': initial_checks, # Now includes competitor analysis
         'crawl_error': error_message
     }
 
-    # 5. Write both final report files
+    # 7. Write all final report files
     structured_file_path = "reports/seo_audit_structured_report.json"
     with open(structured_file_path, 'w', encoding='utf-8') as f:
         json.dump(structured_report_data, f, indent=4)
     print(f"\nStructured report saved to: {structured_file_path}")
 
-    markdown_file_path = "reports/seo_professional_report.md"
-    # Pass the entire data structure, including the score
-    write_summary_report(structured_report_data, markdown_file_path) 
+    # NEW: Write JSON and Markdown reports using updated functions
+    write_json_report(structured_report_data, "reports/seo_audit_report.json")
+    write_markdown_report(structured_report_data, "reports/seo_professional_report.md")
 
-    print(f"\nSummary report saved to: {markdown_file_path}")
+    # Original summary report call (assumed to generate a simple text/console output)
+    write_summary_report(structured_report_data, "reports/seo_simple_summary.txt") 
+
     print(f"\nPages Crawled: {total_pages_crawled} | Final Score: {final_score}/100")
 
-# --- Main Execution Flow ---
+# --- Main Execution Flow (LOGIC REMAINS SAME) ---
 def main():
     try:
         AUDIT_URL = os.environ['AUDIT_URL']
@@ -211,7 +222,7 @@ def main():
         settings.set('DEPTH_LIMIT', 2)
     elif AUDIT_SCOPE == 'full_300_pages':
         settings.set('CLOSESPIDER_PAGECOUNT', 300)
-        settings.set('DEPTH_LIMIT', 5) # Reasonable maximum depth
+        settings.set('DEPTH_LIMIT', 5) 
 
     max_pages_count = settings.getint('CLOSESPIDER_PAGECOUNT')
 
