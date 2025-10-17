@@ -3,20 +3,16 @@
 import json
 import datetime
 import re
+import logging
 from urllib.parse import urlparse
 from collections import defaultdict
-import logging
 
-# Assuming ALL checks (like ssl_check, etc.) are available when this is run by main.py
-# and the CRITICAL_ISSUE_WEIGHTS structure is implicitly known from main.py's logic
-# for the aggregation keys.
-
-# --- Helper Functions ---
+# --- Helper Functions: Issue Map and Formatting ---
 
 def _get_issue_description_map():
     """
     Defines common issues, their priority, description, and an expert solution.
-    (Retained from your original file)
+    This map consolidates all detailed descriptions and solutions for the 22 check results.
     """
     return {
         'title_fail': {'name': 'Missing or Poorly Formatted Title Tag', 'priority': 'High', 'description': 'Pages missing a Title Tag or having one that is too long/short (Optimal: 30-60 characters).', 'solution': 'For any page, **view the source code** (Ctrl+U or Cmd+Option+U) and locate the `<title>` tag. Ensure its length is 30-60 characters and it is unique across your site.'},
@@ -79,7 +75,7 @@ def _format_check_box(check_name, status, details, solution_key=None, note=None)
         elif 'vitals' in check_name.lower() or 'performance' in check_name.lower():
             use_key = 'cwv_warn'
         else:
-            use_key = None # No specific fix available
+            use_key = None 
 
         if use_key and use_key in issue_map:
             issue = issue_map[use_key]
@@ -91,12 +87,12 @@ def _format_check_box(check_name, status, details, solution_key=None, note=None)
     return '\n'.join(box)
 
 
-# --- Core Logic Functions (UPDATED) ---
+# --- Core Logic Functions ---
 
 def get_check_aggregation(initial_checks: dict, crawled_pages: list) -> dict:
     """
-    FIXED: Aggregates issue counts across both initial checks and crawled pages.
-    The aggregation keys must align with CRITICAL_ISSUE_WEIGHTS in main.py.
+    Aggregates issue counts across both initial checks and crawled pages,
+    ensuring alignment with main.py's weighted penalty system.
     """
     
     # These keys must match the ones in CRITICAL_ISSUE_WEIGHTS in main.py
@@ -111,11 +107,11 @@ def get_check_aggregation(initial_checks: dict, crawled_pages: list) -> dict:
     if initial_checks:
         ssl_data = initial_checks.get('ssl_check', {})
         if not ssl_data.get('valid_ssl', True): 
-            aggregated_counts['ssl_check_fail_count'] += 1 # Only one check for the whole site
+            aggregated_counts['ssl_check_fail_count'] += 1 
         
         robots_data = initial_checks.get('robots_sitemap', {})
         if robots_data.get('robots.txt_status') != 'found' or robots_data.get('sitemap.xml_status') != 'found':
-             aggregated_counts['robots_sitemap_fail_count'] += 1 # Only one check for the whole site
+             aggregated_counts['robots_sitemap_fail_count'] += 1 
              
     # 2. Process Page-Specific Crawled Issues
     for page in crawled_pages:
@@ -126,8 +122,7 @@ def get_check_aggregation(initial_checks: dict, crawled_pages: list) -> dict:
         if page_checks.get('meta_check', {}).get('desc_fail') is True: aggregated_counts['desc_fail_count'] += 1
         if page_checks.get('heading_check', {}).get('h1_fail') is True: aggregated_counts['h1_fail_count'] += 1
         
-        # NOTE: link_broken_total is typically a total count across the site, not per page failure.
-        # We sum all broken links found on a single page check.
+        # Sum broken links from all pages
         aggregated_counts['link_broken_total'] += page_checks.get('link_check', {}).get('broken_link_count', 0)
         
         if page_checks.get('mobile_friendly_check', {}).get('mobile_friendly') is False: aggregated_counts['mobile_unfriendly_count'] += 1
@@ -138,7 +133,7 @@ def get_check_aggregation(initial_checks: dict, crawled_pages: list) -> dict:
     return dict(aggregated_counts)
 
 def write_json_report(structured_report_data: dict, file_path: str):
-    """NEW: Writes the full structured data to a JSON file."""
+    """Writes the full structured data to a JSON file."""
     try:
         with open(file_path, 'w', encoding='utf-8') as f:
             json.dump(structured_report_data, f, indent=4)
@@ -147,10 +142,7 @@ def write_json_report(structured_report_data: dict, file_path: str):
         logging.error(f"Failed to write JSON report: {e}")
 
 def write_summary_report(structured_report_data: dict, file_path: str):
-    """
-    NEW: Generates a simple text summary (for console/log purposes).
-    (Kept for compatibility with main.py's multiple report writers)
-    """
+    """Generates a simple text summary."""
     final_score = structured_report_data['final_score']
     total_pages = structured_report_data['total_pages_crawled']
     
@@ -171,8 +163,8 @@ def write_summary_report(structured_report_data: dict, file_path: str):
 
 def write_markdown_report(report, md_path):
     """
-    RENAMED/UPDATED: Writes the final professional Markdown report, including
-    the new Deep Competitor Analysis section.
+    Writes the final professional Markdown report, including all 22 check details, 
+    issue descriptions/solutions, and the deep competitor analysis section.
     """
     audit_details = report['audit_details']
     crawled_pages = report['crawled_pages']
@@ -183,7 +175,7 @@ def write_markdown_report(report, md_path):
     current_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
     content = []
-
+    
     # --- 1. Report Header ---
     content.append("# 💎 PROFESSIONAL SEO AUDIT REPORT\n\n")
     content.append(f"**Target URL:** `{audit_details.get('target_url', 'N/A')}`\n")
@@ -197,20 +189,22 @@ def write_markdown_report(report, md_path):
     content.append("This score is based on a weighted penalty model focusing on critical, crawl-impacting issues. See the Structured JSON file for a breakdown of penalties.\n\n")
     content.append(f"The site received a score of **{score}/100** based on the on-page analysis of {len(crawled_pages)} pages.\n\n")
     content.append("### Key Issues\n\n")
-    # List top 5 issues from aggregated_issues (using logic from main.py's weights for priority)
-    top_issues = {k: v for k, v in aggregated_issues.items() if '_count' in k and v > 0}
-    sorted_issues = sorted(top_issues.items(), key=lambda item: item[1], reverse=True)[:5]
+    
+    # List top 5 issues from aggregated_issues (Focusing on the high-impact scoring keys)
+    relevant_issues = {k: v for k, v in aggregated_issues.items() if '_fail_count' in k or '_total' in k and v > 0}
+    sorted_issues = sorted(relevant_issues.items(), key=lambda item: item[1], reverse=True)[:5]
     
     if sorted_issues:
         for key, count in sorted_issues:
-            issue_name = key.replace('_count', '').replace('_', ' ').title()
-            content.append(f"* **{issue_name}:** Found **{count}** instance(s) across the site.\n")
+            issue_key_base = key.replace('_count', '').replace('_total', '')
+            name = issue_map.get(issue_key_base, {}).get('name', issue_key_base.replace('_', ' ').title())
+            content.append(f"* **{name}:** Found **{count}** instance(s) across the site.\n")
     else:
         content.append("* No critical issues detected on the crawled pages.\n")
         
     content.append("\n---\n\n")
 
-    # --- 3. Deep Competitor Analysis (NEW INTEGRATION) ---
+    # --- 3. Deep Competitor Analysis (The NEW INTEGRATION) ---
     comp_audit = report.get('competitor_analysis')
     your_url = audit_details.get('target_url')
     
@@ -221,38 +215,14 @@ def write_markdown_report(report, md_path):
         your_homepage_checks = crawled_pages[0]['checks'] 
         comp_checks = comp_audit['checks']
         
-        # --- Create Comparison Table Data ---
+        # --- Create Comparison Table Data (Uses existing check outputs) ---
         comparison_data = [
-            {
-                'name': 'Title Tag Status',
-                'yours': _format_status_for_md(_get_status_or_value(your_homepage_checks, 'meta_check')),
-                'competitor': _format_status_for_md(_get_status_or_value(comp_checks, 'meta_check')),
-            },
-            {
-                'name': 'H1 Status',
-                'yours': _format_status_for_md(_get_status_or_value(your_homepage_checks, 'heading_check')),
-                'competitor': _format_status_for_md(_get_status_or_value(comp_checks, 'heading_check')),
-            },
-            {
-                'name': 'Mobile Friendly',
-                'yours': _format_status_for_md(_get_status_or_value(your_homepage_checks, 'mobile_friendly_check')),
-                'competitor': _format_status_for_md(_get_status_or_value(comp_checks, 'mobile_friendly_check')),
-            },
-            {
-                'name': 'LCP (Core Web Vitals)',
-                'yours': _get_status_or_value(your_homepage_checks, 'core_web_vitals_check', 'lcp_value'),
-                'competitor': _get_status_or_value(comp_checks, 'core_web_vitals_check', 'lcp_value'),
-            },
-            {
-                'name': 'Server Response (TTFB Proxy)',
-                'yours': _format_status_for_md(_get_status_or_value(your_homepage_checks, 'performance_check')),
-                'competitor': _format_status_for_md(_get_status_or_value(comp_checks, 'performance_check')),
-            },
-            {
-                'name': 'Schema Markup',
-                'yours': _format_status_for_md(_get_status_or_value(your_homepage_checks, 'schema_check', 'schema_found')),
-                'competitor': _format_status_for_md(_get_status_or_value(comp_checks, 'schema_check', 'schema_found')),
-            }
+            {'name': 'Title Tag Status', 'yours': _format_status_for_md(_get_status_or_value(your_homepage_checks, 'meta_check')), 'competitor': _format_status_for_md(_get_status_or_value(comp_checks, 'meta_check'))},
+            {'name': 'H1 Status', 'yours': _format_status_for_md(_get_status_or_value(your_homepage_checks, 'heading_check')), 'competitor': _format_status_for_md(_get_status_or_value(comp_checks, 'heading_check'))},
+            {'name': 'Mobile Friendly', 'yours': _format_status_for_md(_get_status_or_value(your_homepage_checks, 'mobile_friendly_check')), 'competitor': _format_status_for_md(_get_status_or_value(comp_checks, 'mobile_friendly_check'))},
+            {'name': 'LCP (Core Web Vitals)', 'yours': _get_status_or_value(your_homepage_checks, 'core_web_vitals_check', 'lcp_value'), 'competitor': _get_status_or_value(comp_checks, 'core_web_vitals_check', 'lcp_value')},
+            {'name': 'Server Response (TTFB Proxy)', 'yours': _format_status_for_md(_get_status_or_value(your_homepage_checks, 'performance_check')), 'competitor': _format_status_for_md(_get_status_or_value(comp_checks, 'performance_check'))},
+            {'name': 'Schema Markup', 'yours': _format_status_for_md(_get_status_or_value(your_homepage_checks, 'schema_check', 'schema_found')), 'competitor': _format_status_for_md(_get_status_or_value(comp_checks, 'schema_check', 'schema_found'))}
         ]
 
         # --- Write Comparison Table ---
@@ -271,13 +241,13 @@ def write_markdown_report(report, md_path):
 
     content.append("---\n\n") 
     
-    # --- 4. Detailed Page-by-Page Audit ---
+# --- 4. Detailed Page-by-Page Audit (22 Check Results) ---
     content.append("## 4. Detailed Page-by-Page Audit\n\n")
     content.append("This section provides granular, check-by-check data for each page crawled, utilizing a clear block format for readability.\n\n")
 
     ALL_CHECK_KEYS = [
         'ssl_check', 'robots_sitemap', 'redirect_check', 
-        'canonical_check', 'url_structure', 'meta_check', 
+        'canonical_check', 'url_structure', 'meta_check', # meta_check will be split into 2 boxes
         'heading_check', 'content_quality', 'image_check', 
         'link_check', 'internal_links', 'schema_check', 
         'mobile_friendly_check', 'accessibility_check', 'performance_check', 
@@ -285,7 +255,6 @@ def write_markdown_report(report, md_path):
         'local_seo_check', 'keyword_analysis', 'backlinks_check'
     ]
 
-    # Process each crawled page for its detailed report
     for idx, page in enumerate(crawled_pages):
         page_checks = page.get('checks', {})
         page_url = page.get('url', 'N/A')
@@ -295,28 +264,30 @@ def write_markdown_report(report, md_path):
         content.append(f"**HTTP Status Code:** `{status_code}`\n")
         content.append("---")
         
-        # --- Process all 21 checks ---
         for key in ALL_CHECK_KEYS:
             data = page_checks.get(key, {}) 
             check_name = key.replace('_', ' ').title()
             
-            # Use a generic approach for the detailed checks to make the code shorter
-            status = data.get('status', 'N/A')
-            details = data.get('details', 'N/A')
-            solution_key = data.get('solution_key') # Assuming simple checks set this on failure
-
+            # --- Dedicated Logic for Split Checks (2 boxes) ---
             if key == 'meta_check':
-                # Special handling for Title/Desc as separate boxes
+                # Result 1: Title Tag Check
                 t_status = '❌ FAIL' if data.get('title_fail') else '✅ PASS'
                 t_details = f"Title: `{data.get('title_content', 'N/A')}` (Length: {data.get('title_length', 0)})"
                 content.append(_format_check_box("Title Tag Check", t_status, t_details, 'title_fail'))
 
+                # Result 2: Meta Description Check
                 d_status = '❌ FAIL' if data.get('desc_fail') or not data.get('desc_content') else '✅ PASS'
                 d_details = f"Description: `{data.get('desc_content', 'MISSING...')[:100]}...` (Length: {data.get('desc_length', 0)})"
                 content.append(_format_check_box("Meta Description Check", d_status, d_details, 'desc_fail'))
                 continue
             
-            elif key == 'robots_sitemap':
+            # --- Logic for Consolidated Checks (1 box each) ---
+            status = data.get('status', 'N/A')
+            details = data.get('details', 'N/A')
+            solution_key = data.get('solution_key')
+
+            # Ensure all relevant check-specific details are captured for the box display
+            if key == 'robots_sitemap':
                 robots = data.get('robots.txt_status', 'not found')
                 sitemap = data.get('sitemap.xml_status', 'not found')
                 status = '✅ PASS'
@@ -329,12 +300,17 @@ def write_markdown_report(report, md_path):
                  status = '❌ FAIL' if is_mobile_friendly is False else '✅ PASS'
                  details = f"Status: {'Friendly' if is_mobile_friendly else 'NOT FRIENDLY'}. Issues: {', '.join(data.get('issues', [])) if data.get('issues') else 'None'}"
                  solution_key = 'not_mobile_friendly'
+            
+            elif key == 'heading_check':
+                h1_fail = data.get('h1_fail')
+                status = '❌ FAIL' if h1_fail else '✅ PASS'
+                details = f"Found **{data.get('h1_count', 0)}** H1 tags. (Optimal: exactly 1)"
+                solution_key = 'h1_fail'
 
-            # Default check box for all other checks
+            # Fallback to generic status display for other checks
             content.append(_format_check_box(check_name, _format_status_for_md(status), details, solution_key, data.get('note')))
             
-        content.append("\n\n---\n") # Final separator for the page audit
-
+        content.append("\n\n---\n") 
 
     # -----------------------------------------------------
     # 5. Appendix/Disclaimer
@@ -345,7 +321,5 @@ def write_markdown_report(report, md_path):
 
     with open(md_path, 'w', encoding='utf-8') as f:
         f.write('\n'.join(content))
-    print(f"Professional Markdown Report written to {md_path}")
-
-
-   
+    logging.info(f"Professional Markdown Report written to {md_path}")
+        
