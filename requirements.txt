@@ -1,20 +1,17 @@
-# requirements.txt - EXPERT VERSION (FINAL FIX)
-
-# Core Web Scraping/Crawling
-scrapy>=2.11.0
-# FIXED: Using latest version, removing strict non-existent constraint
+# Core Crawling
+scrapy
 scrapy-playwright
-playwright>=1.47.0
-# Explicitly including Twisted for stable Scrapy performance
-Twisted>=22.10.0
+twisted<23.0.0  # Common requirement for Scrapy compatibility
 
-# Data Processing and Analysis
-requests>=2.31.0
-textblob>=0.18.0
-nltk>=3.8.1
-# 🔥 CRITICAL FIX: Add the missing package for readability checks
-textstat>=0.7.1 
+# HTML Parsing and External Fetching
+beautifulsoup4
+lxml
+requests
 
-# HTML Parsing and Manipulation
-beautifulsoup4>=4.12.3
-lxml>=4.9.4
+# Data Handling (Recommended if not already present)
+pydantic
+
+# NLP and Content Analysis (Mandatory for keyword/content_quality checks)
+textstat
+textblob
+nltk
