@@ -328,19 +328,35 @@ def write_summary_report(report, md_path):
             
             
             elif key == 'canonical_check':
-                mismatch = data.get('canonical_mismatch', False)
-                canonical_url = data.get('canonical_url', None)
-                
-                if canonical_url is None:
-                    status = '❌ MISSING'
-                elif mismatch:
-                    status = '⚠️ CHECK'
-                else:
-                    status = '✅ PASS'
-                    
-                details = f"Canonical URL: `{canonical_url if canonical_url else 'NONE DETECTED'}`."
-                
-                content.append(_format_check_box(check_name, status, details, 'canonical_mismatch', data.get('note')))
+    # read explicit flags returned by the check
+    canonical_url = data.get('canonical_url', None)
+    mismatch = data.get('canonical_mismatch', False)
+    missing = data.get('canonical_missing', False)
+
+    # Determine human-friendly status
+    if missing and not canonical_url:
+        status = '❌ MISSING'
+    elif mismatch:
+        status = '⚠️ CHECK'
+    else:
+        status = '✅ PASS'
+
+    # Provide clear details (explicit about missing vs present)
+    details = f"Canonical URL: `{canonical_url if canonical_url else 'NONE DETECTED'}`."
+
+    # Clarify whether it was missing vs mismatched in the note area (keeps original note too)
+    extra_note = ''
+    if missing and not canonical_url:
+        extra_note = "Missing canonical tag."
+    elif mismatch:
+        extra_note = "Canonical exists but points to a different URL."
+
+    # Merge notes cleanly
+    note_text = data.get('note', '')
+    if extra_note and extra_note not in note_text:
+        note_text = f"{note_text} {extra_note}".strip()
+
+    content.append(_format_check_box(check_name, status, details, 'canonical_mismatch', note_text))
                 
             elif key == 'url_structure':
                 if data.get('not_clean'):
