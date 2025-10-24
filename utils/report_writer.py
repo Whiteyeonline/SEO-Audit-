@@ -163,14 +163,12 @@ def get_check_aggregation(crawled_pages):
         if content_data.get('thin_content') is True: aggregation['thin_content_count'] += 1
         image_data = page_checks.get('image_check', {})
         aggregation['missing_alt_total'] += image_data.get('missing_alt_images_count', 0)
-
+        canonical_data = page_checks.get('canonical_check', {})
+        if canonical_data.get('canonical_mismatch') is True: aggregation['canonical_mismatch_count'] += 1
         # Link, Canonical & Redirect Checks
         link_data = page_checks.get('link_check', {})
         aggregation['link_broken_total'] += link_data.get('broken_link_count', 0)
-        canonical_data = page_checks.get('canonical_check', {})
-        # Count as an issue if canonical is missing OR mismatched
-        if canonical_data.get('canonical_mismatch') is True or canonical_data.get('canonical_missing') is True:
-        aggregation['canonical_mismatch_count'] += 1
+  
         redirect_data = page_checks.get('redirect_check', {})
         if redirect_data.get('was_redirected') is True: aggregation['redirect_info_count'] += 1
 
