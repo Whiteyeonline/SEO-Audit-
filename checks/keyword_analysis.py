@@ -1,156 +1,137 @@
-# checks/keyword_analysis.py
-from textstat.textstat import textstatistics
-from bs4 import BeautifulSoup
-from collections import Counter
 import re
+from bs4 import BeautifulSoup
+from textstat import textstatistics as textstat
 
-# FIX: Expanded STOP_WORDS list to include critical missing ones like 'by', 'from', 'as', etc.
-STOP_WORDS = set([
-    'the', 'a', 'an', 'and', 'or', 'but', 'is', 'are', 'was', 'were', 'of', 'in', 'to', 'for', 'with', 'on', 'at', 
-    'i', 'you', 'your', 'we', 'our', 'it', 'by', 'from', 'as', 'that', 'this', 'have', 'has', 'had', 'will', 
-    'would', 'can', 'could', 'may', 'might', 'do', 'does', 'did', 'be', 'been', 'being', 'about', 'just', 'more',
-    'which', 'who', 'what', 'where', 'when', 'why', 'how', 'its', 'them', 'their', 'they', 'than', 'up', 'down',
-    'out', 'into', 'over', 'under', 'through', 'after', 'before'
-])
+# Common English stop words (you can expand this list anytime)
+STOP_WORDS = {
+    "a","an","the","is","am","are","was","were","be","been","being",
+    "has","have","had","do","does","did","of","on","in","to","for","by",
+    "and","or","not","no","from","with","as","at","that","this","it",
+    "its","but","if","then","so","because","than","too","very","there",
+    "their","my","your","our","we","you","they","he","she","his","her",
+    "them","these","those","what","which","who","whom","how","where",
+    "when","why","can","will","shall","would","should","could"
+}
 
-def get_word_frequency_and_ngrams(text, top_n=10):
-    """Calculates frequency for single words and N-grams (2, 3 words), excluding common stop words."""
-    if not text:
-        return []
+def get_word_frequency_and_ngrams(text):
+    """
+    Extracts top keywords and two-word phrases (N-grams),
+    excluding stop words and short meaningless terms.
+    """
+    text = re.sub(r'[^a-zA-Z0-9\s]', ' ', text)
+    words = [w.lower() for w in text.split() if w.lower() not in STOP_WORDS and len(w) > 2]
+    freq = {}
 
-    # Tokenize and clean text using regex to get full words only
-    words = [word.lower() for word in re.findall(r'\b\w+\b', text) if word.isalpha()]
-    
-    # Filter out stop words from the main list
-    clean_words = [word for word in words if word not in STOP_WORDS]
-    
-    # 1. Single Word Frequency
-    word_counts = Counter(clean_words)
-    
-    # 2. N-Gram (2-word and 3-word phrase) Frequency
-    final_counts = word_counts.copy()
-    
-    # 2-grams
-    ngrams_2 = [' '.join(clean_words[i:i+2]) for i in range(len(clean_words) - 1)]
-    final_counts.update(Counter(ngrams_2))
-    
-    # 3-grams
-    ngrams_3 = [' '.join(clean_words[i:i+3]) for i in range(len(clean_words) - 2)]
-    final_counts.update(Counter(ngrams_3))
+    for i in range(len(words)):
+        # Single word
+        single = words[i]
+        freq[single] = freq.get(single, 0) + 1
 
-    # Sort by count (highest first)
-    sorted_counts = sorted(final_counts.items(), key=lambda item: item[1], reverse=True)
-    
-    # Filter out any final keywords that are single, very short, and not the start of a phrase
-    # E.g., removes single letters or very common short words that were missed by stop-word filter
-    sorted_counts = [(k, v) for k, v in sorted_counts if len(k) > 2 or ' ' in k]
+        # Two-word phrase (skip if any part is stop word)
+        if i + 1 < len(words):
+            pair = f"{words[i]} {words[i+1]}"
+            if all(w not in STOP_WORDS for w in [words[i], words[i+1]]):
+                freq[pair] = freq.get(pair, 0) + 1
 
-    return sorted_counts[:top_n]
+    return sorted(freq.items(), key=lambda x: x[1], reverse=True)[:10]
 
 
 def run_checks(title, description, content, h1_tags, level):
-    """Runs all keyword reinforcement checks (Improved logic using N-grams)."""
-    
+    """
+    Runs keyword frequency, density, placement, and readability checks.
+    """
     results = {}
-    
-    # Clean up excessive whitespace in content
+
     clean_content = ' '.join(content.split())
     total_words = len(clean_content.split())
-    
-    # 1. Word/N-gram Frequency Check 
+
+    # 1️⃣ Keyword frequency and filtering
     top_keywords = get_word_frequency_and_ngrams(clean_content)
     results['top_keywords'] = [{'keyword': w[0], 'count': w[1]} for w in top_keywords]
-    
+
     if not top_keywords or total_words == 0:
-        results['density_check'] = {'result': 'Fail', 'message': 'No content found to analyze.'}
-        results['placement_check'] = {'result': 'Fail', 'message': 'Cannot run placement check without content.'}
-        return results
+        return {
+            "primary_keyword": None,
+            "primary_keyword_density": 0.0,
+            "density_check": {"result": "Fail", "message": "No content found to analyze."},
+            "placement_check": {"result": "Fail", "message": "Cannot run placement check without content."}
+        }
 
-    # The primary keyword is now the highest frequency word or N-gram
-    primary_keyword = top_keywords[0][0]
-    
-    # Calculate density for the primary keyword/N-gram
+    # 2️⃣ Primary keyword selection (skip too short ones)
+    primary_keyword = None
+    for kw, count in top_keywords:
+        if len(kw) > 2 and kw not in STOP_WORDS:
+            primary_keyword = kw
+            break
+    if not primary_keyword:
+        primary_keyword = top_keywords[0][0]
+
+    # 3️⃣ Keyword density (regex word-boundary match)
     text_to_search = clean_content.lower()
-    # Count appearances of the *full phrase*
-    keyword_count_in_text = text_to_search.count(primary_keyword.lower())
-    keyword_density = (keyword_count_in_text / total_words) * 100
-    
-    # 2. Density Check (Target: 0.5-3.0%)
-    density_result = 'Pass'
-    message = f"Density of primary keyword/N-gram '{primary_keyword}' is {keyword_density:.2f}% (Total Words: {total_words})."
+    keyword_count_in_text = len(re.findall(r'\b' + re.escape(primary_keyword.lower()) + r'\b', text_to_search))
+    keyword_density = (keyword_count_in_text / total_words) * 100.0 if total_words > 0 else 0.0
+
+    results["primary_keyword"] = primary_keyword
+    results["primary_keyword_density"] = round(keyword_density, 2)
+
+    # 4️⃣ Density interpretation
     if keyword_density > 3.0:
-        density_result = 'Warning'
-        message += " Risk of keyword stuffing (over 3.0%)."
+        density_result = "Warning"
+        density_msg = f"Keyword '{primary_keyword}' density is {keyword_density:.2f}% — possible keyword stuffing."
     elif keyword_density < 0.5:
-        density_result = 'Warning'
-        message += " Low keyword focus (below 0.5%)."
-    
-    results['density_check'] = {'result': density_result, 'message': message}
-    
-    # 3. Placement Check (Reinforce) - Checks for phrase presence in critical elements
-    placement_result = 'Pass'
-    placement_message = []
-    
-    keyword_check = primary_keyword.lower()
-    
-    if keyword_check not in (title or '').lower():
-        placement_result = 'Warning'
-        placement_message.append("Keyword missing from Title Tag.")
-    
-    if description and keyword_check not in description.lower():
-        placement_result = 'Warning'
-        placement_message.append("Keyword missing from Meta Description.")
-        
-    if not any(keyword_check in h1.lower() for h1 in h1_tags):
-        placement_result = 'Warning'
-        placement_message.append("Keyword missing from H1 Tag.")
+        density_result = "Warning"
+        density_msg = f"Keyword '{primary_keyword}' density is {keyword_density:.2f}% — too low, weak focus."
+    else:
+        density_result = "Pass"
+        density_msg = f"Keyword '{primary_keyword}' density is healthy ({keyword_density:.2f}%)."
+    results["density_check"] = {"result": density_result, "message": density_msg}
 
-    if not placement_message:
-        placement_message = ["Primary keyword is well-placed in critical SEO elements."]
+    # 5️⃣ Placement check (title, desc, h1)
+    placement_issues = []
+    kw = primary_keyword.lower()
+    if kw not in (title or '').lower():
+        placement_issues.append("Missing in Title Tag.")
+    if description and kw not in description.lower():
+        placement_issues.append("Missing in Meta Description.")
+    if not any(kw in h1.lower() for h1 in h1_tags):
+        placement_issues.append("Missing in H1 Tag.")
 
-    results['placement_check'] = {'result': placement_result, 'message': ' '.join(placement_message)}
+    placement_msg = " ".join(placement_issues) if placement_issues else "Keyword appears in key elements."
+    placement_result = "Pass" if not placement_issues else "Warning"
+    results["placement_check"] = {"result": placement_result, "message": placement_msg}
 
-    # 4. Readability Score (Advanced Level Only - already covered by content_quality.py, but kept for redundancy)
-    if level == 'advanced' and total_words > 100:
+    # 6️⃣ Readability check (only in advanced)
+    if level == "advanced" and total_words > 100:
         try:
-            flesch_score = textstatistics().flesch_reading_ease(clean_content)
-            results['readability_check'] = {
-                'result': 'Pass' if flesch_score >= 60 else 'Warning',
-                'flesch_score': f"{flesch_score:.2f}",
-                'message': f"Flesch Reading Ease Score is {flesch_score:.2f}. Scores below 60 are often considered difficult for general audiences."
+            score = textstat().flesch_reading_ease(clean_content)
+            results["readability_check"] = {
+                "result": "Pass" if score >= 60 else "Warning",
+                "flesch_score": round(score, 2),
+                "message": f"Flesch Reading Ease Score: {score:.2f}"
             }
         except Exception:
-             results['readability_check'] = {'result': 'Fail', 'message': 'Could not calculate Flesch Score due to content parsing error.'}
+            results["readability_check"] = {"result": "Fail", "message": "Error calculating readability."}
 
-    
     return results
+
 
 def run_audit(response, audit_level):
     """
-    Wrapper function to extract data from the Scrapy response and run keyword analysis checks.
+    Extracts page data and runs keyword analysis.
     """
     try:
-        # Use response.body for robust parsing of the rendered HTML
         soup = BeautifulSoup(response.body, "lxml", from_encoding="utf-8")
-        content_soup = BeautifulSoup(response.body, "lxml", from_encoding="utf-8")
     except Exception as e:
-        return {"error": f"Failed to parse content for keyword analysis: {str(e)}"}
-    
-    # 1. Extract Title
-    title = soup.find('title').get_text(strip=True) if soup.find('title') else ""
+        return {"error": f"Failed to parse HTML: {str(e)}"}
 
-    # 2. Extract Meta Description
-    desc_tag = soup.find('meta', attrs={'name': 'description'})
-    description = desc_tag.get('content', '') if desc_tag else ""
+    title = soup.find("title").get_text(strip=True) if soup.find("title") else ""
+    desc_tag = soup.find("meta", attrs={"name": "description"})
+    description = desc_tag.get("content", "") if desc_tag else ""
 
-    # 3. Extract Content (Text after removing noise)
-    # Strip scripts, styles, and other noise
-    for script_or_style in content_soup(["script", "style", "header", "footer", "nav", "aside", "noscript"]):
-        script_or_style.decompose()
-    content = content_soup.get_text(separator=' ', strip=True)
+    for s in soup(["script", "style", "nav", "footer", "header", "aside", "noscript"]):
+        s.decompose()
 
-    # 4. Extract H1 Tags
-    h1_tags = [h.get_text(strip=True) for h in soup.find_all('h1')]
-    
-    # Run the core logic with the extracted data
+    content = soup.get_text(separator=" ", strip=True)
+    h1_tags = [h.get_text(strip=True) for h in soup.find_all("h1")]
+
     return run_checks(title, description, content, h1_tags, audit_level)
