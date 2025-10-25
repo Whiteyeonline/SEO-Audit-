@@ -153,64 +153,64 @@ def get_check_aggregation(crawled_pages):
 
         # Meta & Heading Checks
         meta_data = page_checks.get('meta_check', {})
-        if meta_data.get('title_fail') is True:
+        if meta_data.get('title_fail') is True: 
             aggregation['title_fail_count'] += 1
-        if meta_data.get('desc_fail') is True:
+        if meta_data.get('desc_fail') is True: 
             aggregation['desc_fail_count'] += 1
         heading_data = page_checks.get('heading_check', {})
-        if heading_data.get('h1_fail') is True:
+        if heading_data.get('h1_fail') is True: 
             aggregation['h1_fail_count'] += 1
 
         # Content & Image Checks
         content_data = page_checks.get('content_quality', {})
-        if content_data.get('thin_content') is True:
+        if content_data.get('thin_content') is True: 
             aggregation['thin_content_count'] += 1
         image_data = page_checks.get('image_check', {})
         aggregation['missing_alt_total'] += image_data.get('missing_alt_images_count', 0)
         canonical_data = page_checks.get('canonical_check', {})
-        if canonical_data.get('canonical_mismatch') is True:
+        if canonical_data.get('canonical_mismatch') is True: 
             aggregation['canonical_mismatch_count'] += 1
         # Link, Canonical & Redirect Checks
         link_data = page_checks.get('link_check', {})
         aggregation['link_broken_total'] += link_data.get('broken_link_count', 0)
   
         redirect_data = page_checks.get('redirect_check', {})
-        if redirect_data.get('was_redirected') is True:
+        if redirect_data.get('was_redirected') is True: 
             aggregation['redirect_info_count'] += 1
 
         # Technical & Structure Checks
         mobile_data = page_checks.get('mobile_friendly_check', {})
-        if mobile_data.get('mobile_friendly') is False:
+        if mobile_data.get('mobile_friendly') is False: 
             aggregation['mobile_unfriendly_count'] += 1
         analytics_data = page_checks.get('analytics_check', {})
-        if analytics_data.get('analytics_missing') is True:
+        if analytics_data.get('analytics_missing') is True: 
             aggregation['analytics_missing_count'] += 1
         og_data = page_checks.get('og_tags_check', {})
-        if og_data.get('og_tags_missing') is True:
+        if og_data.get('og_tags_missing') is True: 
             aggregation['og_tags_fail_count'] += 1
         url_data = page_checks.get('url_structure', {})
-        if url_data.get('not_clean') is True:
+        if url_data.get('not_clean') is True: 
             aggregation['url_not_clean_count'] += 1
         robots_data = page_checks.get('robots_sitemap', {})
         # Note: If robots_sitemap_fail_count is ever > 0, it means a failure occurred.
-        if robots_data.get('robots_sitemap_fail_count', 0) > 0:
+        if robots_data.get('robots_sitemap_fail_count', 0) > 0: 
             aggregation['robots_sitemap_fail_count'] += 1
         
         # Performance & Accessibility
         cwv_data = page_checks.get('core_web_vitals_check', {})
-        if cwv_data.get('performance_status') == '⚠️ WARN':
+        if cwv_data.get('performance_status') == '⚠️ WARN': 
             aggregation['core_web_vitals_warn_count'] += 1
         # Check if the internal response time check failed
         perf_data = page_checks.get('performance_check', {})
-        if perf_data.get('mobile_score', {}).get('result') != 'Pass':
+        if perf_data.get('mobile_score', {}).get('result') != 'Pass': 
             aggregation['server_response_fail_count'] += 1
         a11y_data = page_checks.get('accessibility_check', {})
-        if a11y_data.get('accessibility_fail') is True:
+        if a11y_data.get('accessibility_fail') is True: 
             aggregation['accessibility_fail_count'] += 1
         
         # Local SEO
         nap_data = page_checks.get('local_seo_check', {})
-        if nap_data.get('nap_fail') is True:
+        if nap_data.get('nap_fail') is True: 
             aggregation['nap_fail_count'] += 1
 
     return aggregation
@@ -317,15 +317,13 @@ def write_summary_report(report, md_path):
                 continue
 
             elif key == 'ssl_check':
-                # Note: 'ssl_check_fail' is not a defined key in _get_issue_description_map(),
-                # but we proceed with the check logic and will not get a solution box.
                 if data.get('valid_ssl'):
                     status = '✅ PASS'
                     details = f"SSL is valid. Issuer: {data.get('issuer', 'N/A')}"
                 else:
                     status = '❌ FAIL'
                     details = "SSL is invalid or missing."
-                content.append(_format_check_box(check_name, status, details)) # Removed 'ssl_check_fail' as a solution key
+                content.append(_format_check_box(check_name, status, details)) # Removed invalid 'ssl_check_fail' key
 
             elif key == 'robots_sitemap':
                 robots = data.get('robots.txt_status', 'not found')
@@ -342,8 +340,9 @@ def write_summary_report(report, md_path):
                 details = f"Requested URL: `{data.get('initial_url', 'N/A')}` | Final URL: `{data.get('final_url', 'N/A')}`"
                 content.append(_format_check_box(check_name, status, details, 'was_redirected', data.get('note')))
             
+            
             elif key == 'canonical_check':
-                # Read explicit flags returned by the check
+                # read explicit flags returned by the check
                 canonical_url = data.get('canonical_url', None)
                 mismatch = data.get('canonical_mismatch', False)
                 missing = data.get('canonical_missing', False)
@@ -359,7 +358,7 @@ def write_summary_report(report, md_path):
                 # Provide clear details (explicit about missing vs present)
                 details = f"Canonical URL: `{canonical_url if canonical_url else 'NONE DETECTED'}`."
 
-                # Clarify whether it was missing vs mismatched in the note area
+               # Clarify whether it was missing vs mismatched in the note area
                 extra_note = ''
                 if missing and not canonical_url:
                     extra_note = "Missing canonical tag."
@@ -406,7 +405,7 @@ def write_summary_report(report, md_path):
             elif key == 'content_quality':
                 word_count = data.get('word_count', 0)
                 status = '✅ PASS'
-                if word_count < 200:
+                if word_count < 200: 
                     status = '❌ FAIL'
                 details = f"Found **{word_count}** words. (Warning for thin content below 200 words)"
                 content.append(_format_check_box(check_name, status, details, 'thin_content', data.get('readability_note')))
@@ -426,7 +425,7 @@ def write_summary_report(report, md_path):
             elif key == 'internal_links':
                 internal_links = data.get('internal_links_count', 0)
                 status = '✅ PASS'
-                if internal_links == 0:
+                if internal_links == 0: 
                     status = '⚠️ WARN'
                 details = f"Page links to **{internal_links}** internal pages and {data.get('external_links_count', 0)} external pages."
                 content.append(_format_check_box(check_name, status, details, 'missing_internal_links'))
@@ -441,7 +440,8 @@ def write_summary_report(report, md_path):
                 is_mobile_friendly = data.get('mobile_friendly')
                 status = '❌ FAIL' if is_mobile_friendly is False else '✅ PASS'
                 issue_list = data.get('issues', [])
-                issue_details = f"Status: {'Friendly' if is_mobile_friendly else 'NOT FRIENDLY'}. Issues: {', '.'.join(issue_list) if issue_list else 'None'}"
+                # FIX: Removed the extra single quote from the join operation: ', '.'.join -> ', '.join
+                issue_details = f"Status: {'Friendly' if is_mobile_friendly else 'NOT FRIENDLY'}. Issues: {', '.join(issue_list) if issue_list else 'None'}"
                 
                 content.append(_format_check_box(check_name, status, issue_details, 'not_mobile_friendly', data.get('note')))
 
@@ -494,7 +494,7 @@ def write_summary_report(report, md_path):
             elif key == 'keyword_analysis':
                 density = data.get('primary_keyword_density', 0)
                 status = '✅ PASS'
-                if density > 5:
+                if density > 5: 
                     status = '⚠️ WARN'
                 details = f"Primary Keyword: `{data.get('primary_keyword', 'N/A')}`. Density: **{density:.2f}%**. (Target: 1-3%)"
                 content.append(_format_check_box(check_name, status, details))
