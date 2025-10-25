@@ -153,55 +153,69 @@ def get_check_aggregation(crawled_pages):
 
         # Meta & Heading Checks
         meta_data = page_checks.get('meta_check', {})
-        if meta_data.get('title_fail') is True: aggregation['title_fail_count'] += 1
-        if meta_data.get('desc_fail') is True: aggregation['desc_fail_count'] += 1
+        if meta_data.get('title_fail') is True:
+            aggregation['title_fail_count'] += 1
+        if meta_data.get('desc_fail') is True:
+            aggregation['desc_fail_count'] += 1
         heading_data = page_checks.get('heading_check', {})
-        if heading_data.get('h1_fail') is True: aggregation['h1_fail_count'] += 1
+        if heading_data.get('h1_fail') is True:
+            aggregation['h1_fail_count'] += 1
 
         # Content & Image Checks
         content_data = page_checks.get('content_quality', {})
-        if content_data.get('thin_content') is True: aggregation['thin_content_count'] += 1
+        if content_data.get('thin_content') is True:
+            aggregation['thin_content_count'] += 1
         image_data = page_checks.get('image_check', {})
         aggregation['missing_alt_total'] += image_data.get('missing_alt_images_count', 0)
         canonical_data = page_checks.get('canonical_check', {})
-        if canonical_data.get('canonical_mismatch') is True: aggregation['canonical_mismatch_count'] += 1
+        if canonical_data.get('canonical_mismatch') is True:
+            aggregation['canonical_mismatch_count'] += 1
         # Link, Canonical & Redirect Checks
         link_data = page_checks.get('link_check', {})
         aggregation['link_broken_total'] += link_data.get('broken_link_count', 0)
   
         redirect_data = page_checks.get('redirect_check', {})
-        if redirect_data.get('was_redirected') is True: aggregation['redirect_info_count'] += 1
+        if redirect_data.get('was_redirected') is True:
+            aggregation['redirect_info_count'] += 1
 
         # Technical & Structure Checks
         mobile_data = page_checks.get('mobile_friendly_check', {})
-        if mobile_data.get('mobile_friendly') is False: aggregation['mobile_unfriendly_count'] += 1
+        if mobile_data.get('mobile_friendly') is False:
+            aggregation['mobile_unfriendly_count'] += 1
         analytics_data = page_checks.get('analytics_check', {})
-        if analytics_data.get('analytics_missing') is True: aggregation['analytics_missing_count'] += 1
+        if analytics_data.get('analytics_missing') is True:
+            aggregation['analytics_missing_count'] += 1
         og_data = page_checks.get('og_tags_check', {})
-        if og_data.get('og_tags_missing') is True: aggregation['og_tags_fail_count'] += 1
+        if og_data.get('og_tags_missing') is True:
+            aggregation['og_tags_fail_count'] += 1
         url_data = page_checks.get('url_structure', {})
-        if url_data.get('not_clean') is True: aggregation['url_not_clean_count'] += 1
+        if url_data.get('not_clean') is True:
+            aggregation['url_not_clean_count'] += 1
         robots_data = page_checks.get('robots_sitemap', {})
         # Note: If robots_sitemap_fail_count is ever > 0, it means a failure occurred.
-        if robots_data.get('robots_sitemap_fail_count', 0) > 0: aggregation['robots_sitemap_fail_count'] += 1
+        if robots_data.get('robots_sitemap_fail_count', 0) > 0:
+            aggregation['robots_sitemap_fail_count'] += 1
         
         # Performance & Accessibility
         cwv_data = page_checks.get('core_web_vitals_check', {})
-        if cwv_data.get('performance_status') == '⚠️ WARN': aggregation['core_web_vitals_warn_count'] += 1
+        if cwv_data.get('performance_status') == '⚠️ WARN':
+            aggregation['core_web_vitals_warn_count'] += 1
         # Check if the internal response time check failed
         perf_data = page_checks.get('performance_check', {})
-        if perf_data.get('mobile_score', {}).get('result') != 'Pass': aggregation['server_response_fail_count'] += 1
+        if perf_data.get('mobile_score', {}).get('result') != 'Pass':
+            aggregation['server_response_fail_count'] += 1
         a11y_data = page_checks.get('accessibility_check', {})
-        if a11y_data.get('accessibility_fail') is True: aggregation['accessibility_fail_count'] += 1
+        if a11y_data.get('accessibility_fail') is True:
+            aggregation['accessibility_fail_count'] += 1
         
         # Local SEO
         nap_data = page_checks.get('local_seo_check', {})
-        if nap_data.get('nap_fail') is True: aggregation['nap_fail_count'] += 1
+        if nap_data.get('nap_fail') is True:
+            aggregation['nap_fail_count'] += 1
 
     return aggregation
 
 
-# 💡 FIX: Removed the redundant 'final_score' argument as it is contained in the 'report' dict.
 def write_summary_report(report, md_path):
     """
     Writes the final report data to a professional Markdown file.
@@ -210,7 +224,7 @@ def write_summary_report(report, md_path):
     audit_details = report['audit_details']
     crawled_pages = report['crawled_pages']
     
-    # 💡 FIX: Retrieve the single source of truth for the score
+    # Retrieve the single source of truth for the score
     score = report['final_score'] 
     
     issue_map = _get_issue_description_map()
@@ -249,8 +263,8 @@ def write_summary_report(report, md_path):
         'local_seo_check', 'keyword_analysis', 'backlinks_check'
     ]
 
-    # Helper function remains the same, but solution keys are updated
     def _format_check_box(check_name, status, details, solution_key=None, note=None):
+        """Helper to format a check result into a markdown box."""
         box = []
         box.append(f"\n**{check_name.upper()}**")
         box.append("-----------------")
@@ -266,9 +280,9 @@ def write_summary_report(report, md_path):
             use_key = solution_key if solution_key in issue_map else None
 
             if 'backlink' in check_name.lower() and not use_key:
-                 use_key = 'backlinks_info'
+                use_key = 'backlinks_info'
             if 'vitals' in check_name.lower() and not use_key:
-                 use_key = 'cwv_warn'
+                use_key = 'cwv_warn'
             
             if use_key and use_key in issue_map:
                 issue = issue_map[use_key]
@@ -289,7 +303,7 @@ def write_summary_report(report, md_path):
         content.append(f"**HTTP Status Code:** `{status}`\n")
         content.append("---")
 
-# --- Process all 21 checks ---
+        # --- Process all 21 checks ---
         for key in ALL_CHECK_KEYS:
             data = page_checks.get(key, {}) 
             check_name = key.replace('_', ' ').title()
@@ -303,13 +317,15 @@ def write_summary_report(report, md_path):
                 continue
 
             elif key == 'ssl_check':
+                # Note: 'ssl_check_fail' is not a defined key in _get_issue_description_map(),
+                # but we proceed with the check logic and will not get a solution box.
                 if data.get('valid_ssl'):
                     status = '✅ PASS'
                     details = f"SSL is valid. Issuer: {data.get('issuer', 'N/A')}"
                 else:
                     status = '❌ FAIL'
                     details = "SSL is invalid or missing."
-                content.append(_format_check_box(check_name, status, details, 'ssl_check_fail')) # Added specific key
+                content.append(_format_check_box(check_name, status, details)) # Removed 'ssl_check_fail' as a solution key
 
             elif key == 'robots_sitemap':
                 robots = data.get('robots.txt_status', 'not found')
@@ -326,45 +342,47 @@ def write_summary_report(report, md_path):
                 details = f"Requested URL: `{data.get('initial_url', 'N/A')}` | Final URL: `{data.get('final_url', 'N/A')}`"
                 content.append(_format_check_box(check_name, status, details, 'was_redirected', data.get('note')))
             
-            
             elif key == 'canonical_check':
-    # read explicit flags returned by the check
-    canonical_url = data.get('canonical_url', None)
-    mismatch = data.get('canonical_mismatch', False)
-    missing = data.get('canonical_missing', False)
+                # Read explicit flags returned by the check
+                canonical_url = data.get('canonical_url', None)
+                mismatch = data.get('canonical_mismatch', False)
+                missing = data.get('canonical_missing', False)
 
-    # Determine human-friendly status
+                # Determine human-friendly status
                 if missing and not canonical_url:
-        status = '❌ MISSING'
-           elif mismatch:
-               status = '⚠️ CHECK'
-               else:
+                    status = '❌ MISSING'
+                elif mismatch:
+                    status = '⚠️ CHECK'
+                else:
                     status = '✅ PASS'
 
-    # Provide clear details (explicit about missing vs present)
-    details = f"Canonical URL: `{canonical_url if canonical_url else 'NONE DETECTED'}`."
+                # Provide clear details (explicit about missing vs present)
+                details = f"Canonical URL: `{canonical_url if canonical_url else 'NONE DETECTED'}`."
 
-    # Clarify whether it was missing vs mismatched in the note area (keeps original note too)
-    extra_note = ''
-    if missing and not canonical_url:
-        extra_note = "Missing canonical tag."
-    elif mismatch:
-        extra_note = "Canonical exists but points to a different URL."
+                # Clarify whether it was missing vs mismatched in the note area
+                extra_note = ''
+                if missing and not canonical_url:
+                    extra_note = "Missing canonical tag."
+                elif mismatch:
+                    extra_note = "Canonical exists but points to a different URL."
 
-    # Merge notes cleanly
-    note_text = data.get('note', '')
-    if extra_note and extra_note not in note_text:
-        note_text = f"{note_text} {extra_note}".strip()
+                # Merge notes cleanly
+                note_text = data.get('note', '')
+                if extra_note and extra_note not in note_text:
+                    note_text = f"{note_text} {extra_note}".strip()
 
-    content.append(_format_check_box(check_name, status, details, 'canonical_mismatch', note_text))
+                content.append(_format_check_box(check_name, status, details, 'canonical_mismatch', note_text))
                 
             elif key == 'url_structure':
                 if data.get('not_clean'):
                     status = '⚠️ WARN'
                     details = f"URL contains parameters or stop words (e.g., `{urlparse(page_url).path}`)."
+                    content.append(_format_check_box(check_name, status, details, 'unclean_url'))
                 else:
                     status = '✅ PASS'
                     details = f"URL is clean and uses best practices: `{urlparse(page_url).path}`"
+                    content.append(_format_check_box(check_name, status, details))
+
             elif key == 'meta_check':
                 title_fail = data.get('title_fail')
                 desc_fail = data.get('desc_fail')
@@ -388,7 +406,8 @@ def write_summary_report(report, md_path):
             elif key == 'content_quality':
                 word_count = data.get('word_count', 0)
                 status = '✅ PASS'
-                if word_count < 200: status = '❌ FAIL'
+                if word_count < 200:
+                    status = '❌ FAIL'
                 details = f"Found **{word_count}** words. (Warning for thin content below 200 words)"
                 content.append(_format_check_box(check_name, status, details, 'thin_content', data.get('readability_note')))
             
@@ -407,7 +426,8 @@ def write_summary_report(report, md_path):
             elif key == 'internal_links':
                 internal_links = data.get('internal_links_count', 0)
                 status = '✅ PASS'
-                if internal_links == 0: status = '⚠️ WARN'
+                if internal_links == 0:
+                    status = '⚠️ WARN'
                 details = f"Page links to **{internal_links}** internal pages and {data.get('external_links_count', 0)} external pages."
                 content.append(_format_check_box(check_name, status, details, 'missing_internal_links'))
 
@@ -421,7 +441,7 @@ def write_summary_report(report, md_path):
                 is_mobile_friendly = data.get('mobile_friendly')
                 status = '❌ FAIL' if is_mobile_friendly is False else '✅ PASS'
                 issue_list = data.get('issues', [])
-                issue_details = f"Status: {'Friendly' if is_mobile_friendly else 'NOT FRIENDLY'}. Issues: {', '.join(issue_list) if issue_list else 'None'}"
+                issue_details = f"Status: {'Friendly' if is_mobile_friendly else 'NOT FRIENDLY'}. Issues: {', '.'.join(issue_list) if issue_list else 'None'}"
                 
                 content.append(_format_check_box(check_name, status, issue_details, 'not_mobile_friendly', data.get('note')))
 
@@ -474,14 +494,15 @@ def write_summary_report(report, md_path):
             elif key == 'keyword_analysis':
                 density = data.get('primary_keyword_density', 0)
                 status = '✅ PASS'
-                if density > 5: status = '⚠️ WARN'
+                if density > 5:
+                    status = '⚠️ WARN'
                 details = f"Primary Keyword: `{data.get('primary_keyword', 'N/A')}`. Density: **{density:.2f}%**. (Target: 1-3%)"
                 content.append(_format_check_box(check_name, status, details))
 
             elif key == 'backlinks_check':
                 status = '⚠️ INFO'
                 details = f"Top Referring Domains: **{data.get('referring_domains_count', 0)}** detected. Sample: {', '.join(data.get('sample_domains', ['N/A']))}"
-                # 💡 FIX: Set solution_key to trigger the basic-check recommendation
+                # Set solution_key to trigger the basic-check recommendation
                 content.append(_format_check_box(check_name, status, details, 'backlinks_info', data.get('note')))
             
         content.append("\n\n---\n") # Final separator for the page audit
