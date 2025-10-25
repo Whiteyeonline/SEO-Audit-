@@ -334,12 +334,12 @@ def write_summary_report(report, md_path):
     missing = data.get('canonical_missing', False)
 
     # Determine human-friendly status
-    if missing and not canonical_url:
+                if missing and not canonical_url:
         status = '❌ MISSING'
-    elif mismatch:
-        status = '⚠️ CHECK'
-    else:
-        status = '✅ PASS'
+           elif mismatch:
+               status = '⚠️ CHECK'
+               else:
+                    status = '✅ PASS'
 
     # Provide clear details (explicit about missing vs present)
     details = f"Canonical URL: `{canonical_url if canonical_url else 'NONE DETECTED'}`."
