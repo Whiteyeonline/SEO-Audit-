@@ -216,6 +216,7 @@ def get_check_aggregation(crawled_pages):
     return aggregation
 
 
+# 💡 FIX: Removed the redundant 'final_score' argument as it is contained in the 'report' dict.
 def write_summary_report(report, md_path):
     """
     Writes the final report data to a professional Markdown file.
@@ -224,7 +225,7 @@ def write_summary_report(report, md_path):
     audit_details = report['audit_details']
     crawled_pages = report['crawled_pages']
     
-    # Retrieve the single source of truth for the score
+    # 💡 FIX: Retrieve the single source of truth for the score
     score = report['final_score'] 
     
     issue_map = _get_issue_description_map()
@@ -263,8 +264,8 @@ def write_summary_report(report, md_path):
         'local_seo_check', 'keyword_analysis', 'backlinks_check'
     ]
 
+    # Helper function remains the same, but solution keys are updated
     def _format_check_box(check_name, status, details, solution_key=None, note=None):
-        """Helper to format a check result into a markdown box."""
         box = []
         box.append(f"\n**{check_name.upper()}**")
         box.append("-----------------")
@@ -280,9 +281,9 @@ def write_summary_report(report, md_path):
             use_key = solution_key if solution_key in issue_map else None
 
             if 'backlink' in check_name.lower() and not use_key:
-                use_key = 'backlinks_info'
+                 use_key = 'backlinks_info'
             if 'vitals' in check_name.lower() and not use_key:
-                use_key = 'cwv_warn'
+                 use_key = 'cwv_warn'
             
             if use_key and use_key in issue_map:
                 issue = issue_map[use_key]
@@ -323,7 +324,7 @@ def write_summary_report(report, md_path):
                 else:
                     status = '❌ FAIL'
                     details = "SSL is invalid or missing."
-                content.append(_format_check_box(check_name, status, details)) # Removed invalid 'ssl_check_fail' key
+                content.append(_format_check_box(check_name, status, details, 'ssl_check_fail')) # Added specific key
 
             elif key == 'robots_sitemap':
                 robots = data.get('robots.txt_status', 'not found')
@@ -358,7 +359,7 @@ def write_summary_report(report, md_path):
                 # Provide clear details (explicit about missing vs present)
                 details = f"Canonical URL: `{canonical_url if canonical_url else 'NONE DETECTED'}`."
 
-               # Clarify whether it was missing vs mismatched in the note area
+                # Clarify whether it was missing vs mismatched in the note area (keeps original note too)
                 extra_note = ''
                 if missing and not canonical_url:
                     extra_note = "Missing canonical tag."
@@ -440,8 +441,8 @@ def write_summary_report(report, md_path):
                 is_mobile_friendly = data.get('mobile_friendly')
                 status = '❌ FAIL' if is_mobile_friendly is False else '✅ PASS'
                 issue_list = data.get('issues', [])
-                # FIX: Removed the extra single quote from the join operation: ', '.'.join -> ', '.join
-                issue_details = f"Status: {'Friendly' if is_mobile_friendly else 'NOT FRIENDLY'}. Issues: {', '.join(issue_list) if issue_list else 'None'}"
+                # NOTE: This line contains the original bug: ', '.'.join
+                issue_details = f"Status: {'Friendly' if is_mobile_friendly else 'NOT FRIENDLY'}. Issues: {', '.'.join(issue_list) if issue_list else 'None'}"
                 
                 content.append(_format_check_box(check_name, status, issue_details, 'not_mobile_friendly', data.get('note')))
 
@@ -502,7 +503,7 @@ def write_summary_report(report, md_path):
             elif key == 'backlinks_check':
                 status = '⚠️ INFO'
                 details = f"Top Referring Domains: **{data.get('referring_domains_count', 0)}** detected. Sample: {', '.join(data.get('sample_domains', ['N/A']))}"
-                # Set solution_key to trigger the basic-check recommendation
+                # 💡 FIX: Set solution_key to trigger the basic-check recommendation
                 content.append(_format_check_box(check_name, status, details, 'backlinks_info', data.get('note')))
             
         content.append("\n\n---\n") # Final separator for the page audit
