@@ -1,4 +1,4 @@
-# checks/performance_check.py
+# utils/performance_check.py
 import asyncio
 import time
 from bs4 import BeautifulSoup
