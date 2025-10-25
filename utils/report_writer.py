@@ -442,7 +442,7 @@ def write_summary_report(report, md_path):
                 status = '❌ FAIL' if is_mobile_friendly is False else '✅ PASS'
                 issue_list = data.get('issues', [])
                 # NOTE: This line contains the original bug: ', '.'.join
-                issue_details = f"Status: {'Friendly' if is_mobile_friendly else 'NOT FRIENDLY'}. Issues: {', '.'.join(issue_list) if issue_list else 'None'}"
+                issue_details = f"Status: {'Friendly' if is_mobile_friendly else 'NOT FRIENDLY'}. Issues: {', '.join(issue_list) if issue_list else 'None'}"
                 
                 content.append(_format_check_box(check_name, status, issue_details, 'not_mobile_friendly', data.get('note')))
 
