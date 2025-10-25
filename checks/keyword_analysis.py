@@ -1,6 +1,7 @@
 import re
 from bs4 import BeautifulSoup
-from textstat import textstatistics as textstat
+# CORRECTED LINE: Import the textstat module directly
+import textstat
 
 # Common English stop words (you can expand this list anytime)
 STOP_WORDS = {
@@ -103,7 +104,8 @@ def run_checks(title, description, content, h1_tags, level):
     # 6️⃣ Readability check (only in advanced)
     if level == "advanced" and total_words > 100:
         try:
-            score = textstat().flesch_reading_ease(clean_content)
+            # CORRECTED CALL: Call the method on the imported textstat module
+            score = textstat.flesch_reading_ease(clean_content)
             results["readability_check"] = {
                 "result": "Pass" if score >= 60 else "Warning",
                 "flesch_score": round(score, 2),
@@ -135,3 +137,4 @@ def run_audit(response, audit_level):
     h1_tags = [h.get_text(strip=True) for h in soup.find_all("h1")]
 
     return run_checks(title, description, content, h1_tags, audit_level)
+        
