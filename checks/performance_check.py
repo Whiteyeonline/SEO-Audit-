@@ -1,64 +1,83 @@
 # checks/performance_check.py
-
-import requests
+import asyncio
 import time
-import os
-import json 
-# Scrapy response object is passed in, but the requests library is used for timing
+from bs4 import BeautifulSoup
+from urllib.parse import urlparse
 
-# FIX: The main function name is now 'run_audit' and accepts Scrapy arguments
-def run_audit(response, audit_level):
+async def run(page):
     """
-    Runs a free, internal Server Response Time check (replaces PageSpeed API)
-    using the requests library to measure the time taken to fetch the URL.
+    Analyzes page performance metrics such as:
+    - TTFB (Time to First Byte)
+    - Total load time
+    - Page size (approx)
+    - Render performance (basic score)
+    Works entirely offline — no paid APIs.
     """
-    
-    # Use the URL from the Scrapy response object
-    url = response.url 
-    response_time = 0.0
-    
-    try:
-        start_time = time.time()
-        
-        # Use simple GET request for full connection time
-        # NOTE: Using a different library (requests) to avoid Scrapy's overhead in measurement
-        response_check = requests.get(url, timeout=10) 
-        
-        end_time = time.time()
-        # Time in milliseconds, rounded to 2 decimal places
-        response_time = round((end_time - start_time) * 1000, 2)
-        
-        # Scoring logic based on common industry standards
-        if response_time < 500:
-            result = 'Pass'
-            score = 95
-            message = f"Excellent: Server response time is {response_time}ms (Target: < 500ms)."
-        elif response_time < 1500:
-            result = 'Warning'
-            score = 60
-            message = f"Acceptable: Response time is {response_time}ms (Target: < 1500ms)."
-        else:
-            result = 'Fail'
-            score = 30
-            message = f"Poor: Response time is {response_time}ms. High priority to optimize."
-            
-        http_status = response_check.status_code
-            
-    except requests.exceptions.RequestException as e:
-        http_status = 0
-        result = 'Fail'
-        score = 0
-        message = f"Connection error or timeout during performance check: {e}"
 
-    # The audit_level argument is mandatory but not used in this specific check.
-    return {
-        'check_name': 'Server Response Time (Internal Check)',
-        'target_url': url,
-        # Using the same result for both mobile/desktop since this is a server-side metric
-        'mobile_score': {'result': result, 'score': score, 'message': message}, 
-        'desktop_score': {'result': result, 'score': score, 'message': message},
-        'response_time_ms': response_time,
-        'http_status': http_status,
-        'status': result
+    result = {
+        "desktop_score": {"result": "Pass", "message": ""},
+        "mobile_score": {"result": "Pass", "message": ""},
+        "page_size_kb": 0,
+        "load_time": 0,
+        "note": ""
     }
-    
+
+    try:
+        # Start timing
+        start_time = time.time()
+
+        # Measure network response time (TTFB)
+        req_start = time.time()
+        await page.goto(page.url, wait_until='domcontentloaded')
+        req_end = time.time()
+        ttfb = req_end - req_start
+
+        # Wait for full load and get content
+        await page.wait_for_load_state('networkidle')
+        await asyncio.sleep(1.5)
+        html = await page.content()
+
+        end_time = time.time()
+        total_load = end_time - start_time
+
+        # --- Estimate page size ---
+        size_kb = len(html.encode('utf-8')) / 1024
+
+        # --- Quick DOM complexity check ---
+        soup = BeautifulSoup(html, 'html.parser')
+        tag_count = len(soup.find_all())
+        image_count = len(soup.find_all('img'))
+
+        # --- Simple scoring logic ---
+        if ttfb > 2.0 or total_load > 6.0 or size_kb > 2000:
+            desktop_result = "Fail"
+        elif ttfb > 1.5 or total_load > 4.0 or size_kb > 1500:
+            desktop_result = "Warn"
+        else:
+            desktop_result = "Pass"
+
+        # Mobile is more sensitive
+        if ttfb > 1.5 or total_load > 4.5 or size_kb > 1500:
+            mobile_result = "Fail"
+        else:
+            mobile_result = desktop_result
+
+        result["desktop_score"]["result"] = desktop_result
+        result["mobile_score"]["result"] = mobile_result
+        result["desktop_score"]["message"] = f"TTFB: {ttfb:.2f}s, Load: {total_load:.2f}s, Size: {size_kb:.1f}KB"
+        result["mobile_score"]["message"] = f"TTFB: {ttfb:.2f}s, Load: {total_load:.2f}s, Size: {size_kb:.1f}KB"
+
+        result["page_size_kb"] = round(size_kb, 1)
+        result["load_time"] = round(total_load, 2)
+        result["note"] = (
+            f"TTFB: {ttfb:.2f}s | Load: {total_load:.2f}s | "
+            f"Elements: {tag_count} | Images: {image_count} | Size: {size_kb:.1f}KB"
+        )
+
+        return result
+
+    except Exception as e:
+        result["desktop_score"]["result"] = "Fail"
+        result["mobile_score"]["result"] = "Fail"
+        result["note"] = f"Error during performance test: {str(e)}"
+        return result
